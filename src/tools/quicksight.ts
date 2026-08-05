@@ -1,7 +1,7 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import type { MarkLogicClients } from "../client/index.js";
-import { toToolError } from "../utils/errors.js";
+import { appendRangeIndexHint, toToolError } from "../utils/errors.js";
 
 export function registerQuickSightTools(server: McpServer, clients: MarkLogicClients): void {
   server.tool(
@@ -60,7 +60,7 @@ export function registerQuickSightTools(server: McpServer, clients: MarkLogicCli
 
         return { content: [{ type: "text", text: JSON.stringify(results, null, 2) }] };
       } catch (err) {
-        return { content: [{ type: "text", text: toToolError(err) }], isError: true };
+        return { content: [{ type: "text", text: appendRangeIndexHint(toToolError(err)) }], isError: true };
       }
     }
   );
@@ -140,7 +140,7 @@ export function registerQuickSightTools(server: McpServer, clients: MarkLogicCli
         };
         return { content: [{ type: "text", text: JSON.stringify(result, null, 2) }] };
       } catch (err) {
-        return { content: [{ type: "text", text: toToolError(err) }], isError: true };
+        return { content: [{ type: "text", text: appendRangeIndexHint(toToolError(err)) }], isError: true };
       }
     }
   );
@@ -208,7 +208,7 @@ export function registerQuickSightTools(server: McpServer, clients: MarkLogicCli
 
         return { content: [{ type: "text", text: output }] };
       } catch (err) {
-        return { content: [{ type: "text", text: toToolError(err) }], isError: true };
+        return { content: [{ type: "text", text: appendRangeIndexHint(toToolError(err)) }], isError: true };
       }
     }
   );
@@ -253,7 +253,7 @@ export function registerQuickSightTools(server: McpServer, clients: MarkLogicCli
           }],
         };
       } catch (err) {
-        return { content: [{ type: "text", text: toToolError(err) }], isError: true };
+        return { content: [{ type: "text", text: appendRangeIndexHint(toToolError(err)) }], isError: true };
       }
     }
   );

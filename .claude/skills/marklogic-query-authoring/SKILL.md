@@ -1,6 +1,6 @@
 ---
 name: marklogic-query-authoring
-description: Choose and write the right MarkLogic query for a goal — full-text search, exact-value filtering, structured cts queries, string-grammar (cts.parse) queries, QBE, facets and distinct-value counts, Optic row queries over TDE views, SPARQL over the triple store, and vector similarity search. Use when composing any query, when a query returns no results or too many, when deciding between ml_search, ml_optic_query, ml_values_query, ml_sparql_query, and ml_vector_search, or when hitting index errors like XDMP-ELEMRIDXNOTFOUND.
+description: Choose and write the right MarkLogic query for a goal — full-text search, exact-value filtering, structured cts queries, string-grammar (cts.parse) queries, QBE, facets and distinct-value counts, Optic row queries over TDE views, SPARQL over the triple store, and vector similarity search. Use when composing any query, when a query returns no results or too many, when deciding between ml_search, ml_optic_query, ml_values_query, ml_sparql_query, and ml_vector_search, or when hitting index errors like XDMP-ELEMRIDXNOTFOUND or XDMP-PATHRIDXNOTFOUND (including when the index is deployed but "not found").
 ---
 
 # MarkLogic Query Authoring
@@ -113,6 +113,47 @@ Work down this list before rewriting the query:
    field fails or returns empty.
 6. **Reindex still running?** `ml_reindex_status`. TDE and index changes need a full
    reindex before they take effect.
+
+## Range-index errors: the index is deployed but "not found"
+
+`XDMP-PATHRIDXNOTFOUND`, `XDMP-ELEMRIDXNOTFOUND`, and `XDMP-FIELDRIDXNOTFOUND` do not
+mean the index is missing from the server — they mean the **reference in the query did
+not resolve to a configured index**. An index that shows up in `ml_indexes_list` can
+still be unusable by your query. Resolution requires an exact match on four axes:
+
+1. **The reference string, character for character.** `cts.pathReference("properties/cost")`
+   will not find an index configured as `/properties/cost` — the leading `/` (and every
+   other character, including namespace prefixes and predicates) must match the
+   configured path-expression verbatim. Run `ml_indexes_list` and copy the configured
+   `pathExpression` into the query; never retype it.
+2. **The index kind matches the constructor.** `cts.pathReference` resolves only a
+   range-**path**-index. `cts.jsonPropertyRangeQuery` / `cts.jsonPropertyReference`
+   resolve only a json-property (element) range index. A path index does not satisfy a
+   property-range query, and vice versa — "I have an index on that field" is not enough;
+   it must be the kind the constructor expects.
+3. **The database the query executes against.** Indexes deployed to a project database
+   (`myapp-content`) are invisible to a query running against the default content DB.
+   Pass `database=` explicitly.
+4. **Reindexing has finished.** Deploy tools return before reindexing does. Check
+   `ml_reindex_status` until `ready=true`.
+
+**Verify immediately after deploying an index** — before building queries on it: run
+`cts.values(<reference>, null, ["limit=1"])` via eval, or a one-value `ml_values_query`.
+Ten seconds of verification beats thirty minutes of query debugging later.
+
+**If the index can't be made to resolve right now, don't stall — fall back:**
+
+- Exact-value and word filtering on JSON properties need **no range index** (see "The
+  most important rule" above) — a `value-query` structured query keeps working.
+- For small collections (< ~10K docs), an unfiltered collection/full-text search plus
+  in-memory filtering of the materialized results is a legitimate MVP pattern.
+- For larger data, a TDE view + `ml_optic_query` gives indexed range filtering without
+  touching range-index config at all.
+
+When you take a fallback, record the decision where the next engineer will see it: what
+failed, what was chosen, and the **upgrade trigger** (document count or latency
+threshold) at which the range-index or TDE path must be revisited. A pragmatic fallback
+without an upgrade trigger silently becomes a performance cliff.
 
 ## When a query returns too much
 

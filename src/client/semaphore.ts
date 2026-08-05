@@ -1105,6 +1105,35 @@ export class SemaphoreClient {
   }
 
   /**
+   * One-shot status check of a KMM async job — no polling, no waiting.
+   * Lets semaphore_publish re-check a previously triggered publish (job_id param)
+   * after a timeout instead of blindly re-triggering it.
+   *
+   * @returns status normalized to COMPLETE | FAILED | RUNNING | NOT_FOUND, plus
+   *          the server's message when present.
+   */
+  async kmmAsyncJobStatus(
+    jobId: string
+  ): Promise<{ status: "COMPLETE" | "FAILED" | "RUNNING" | "NOT_FOUND"; message?: string }> {
+    const token = await this.kmmApiKey();
+    const res = await this.kmmHttp.get(
+      `/kmm/api?path=async/jobs/${jobId}`,
+      { headers: { "x-api-key": token }, validateStatus: (s) => s < 500 }
+    );
+    if (res.status === 404) return { status: "NOT_FOUND" };
+    const data = res.data as Record<string, unknown>;
+    const jobStatus = (data?.status as string | undefined)?.toUpperCase();
+    const message = data?.message as string | undefined;
+    if (jobStatus === "COMPLETE" || jobStatus === "FINISHED" || data?.complete === true) {
+      return { status: "COMPLETE", message };
+    }
+    if (jobStatus === "FAILED" || jobStatus === "ERROR") {
+      return { status: "FAILED", message };
+    }
+    return { status: "RUNNING", message };
+  }
+
+  /**
    * Delete a KMM model and all its triples permanently.
    * THIS IS IRREVERSIBLE. Does not remove published CLS rule sets — deactivate
    * those separately via the CLS publish-set API.
