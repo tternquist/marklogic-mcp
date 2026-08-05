@@ -1,6 +1,6 @@
 ---
 name: marklogic-server-side-code
-description: Write server-side MarkLogic code — SJS and XQuery modules, REST resource extensions, Content Transformation Framework transforms, Flux reader and transform modules, and TDE templates. Use when generating or debugging a module to deploy to the Modules database, building a custom REST endpoint, writing a bulk transform, or authoring a TDE JSON template. Covers module signatures per type, the declareUpdate() placement trap, and the TDE syntax rules behind TDE-INVALIDTEMPLATEPROPNODE and TDE-INVALIDTEMPLATENODEVAL errors.
+description: Write server-side MarkLogic code — SJS and XQuery modules, REST resource extensions, Content Transformation Framework transforms, Flux reader and transform modules, and TDE templates — and apply MarkLogic application coding practices to them. Use when generating or debugging a module to deploy to the Modules database, building a custom REST endpoint, writing a bulk transform, or authoring a TDE JSON template. Also use when a module takes caller input, writes documents, needs elevated privileges, or must be tested: covers parameterizing queries with bindings instead of string concatenation, xdmp.eval vs invokeFunction vs spawn, amps for privilege escalation, the 600-second transaction limit and spawn-batching, explicit permissions and collections on insert, RESTAPI-SRVEXERR error handling, and marklogic-unit-test suites. Covers module signatures per type, the declareUpdate() placement trap, and the TDE syntax rules behind TDE-INVALIDTEMPLATEPROPNODE and TDE-INVALIDTEMPLATENODEVAL errors.
 ---
 
 # MarkLogic Server-Side Code
@@ -10,7 +10,7 @@ description: Write server-side MarkLogic code — SJS and XQuery modules, REST r
 | Type | Shape |
 |---|---|
 | **Library** | `module.exports = {...}` or `exports.fn = …` |
-| **REST resource extension** | export `get` / `put` / `post` / `delete`, each `(context, params, input)` |
+| **REST resource extension** | export `GET` / `PUT` / `POST` / `DELETE`, each `(context, params, input)` |
 | **REST transform (CTF)** | export a transform function `(content, context)` |
 | **Flux reader** (phase 1) | returns a Sequence/Array of URI strings — **no** `declareUpdate()` |
 | **Flux transform** (phase 2) | `declareUpdate()` first, `var URI` injected, one output doc per call |
@@ -20,17 +20,43 @@ Universal conventions: `'use strict';` at the top, `xdmp.log()` for server-side 
 `cts.search()` rather than `fn.doc()` for retrieval, `try`/`catch` around fallible work,
 and JSDoc on exported functions.
 
-### ⚠ REST resource extensions cannot use library modules
+### If `require()` fails inside a REST resource extension
 
-The REST API imports resource service extensions dynamically, and JavaScript library
-modules are not available in that context — a `require()` of your own `/lib/*.sjs` will
-not resolve. Because the import happens at request time, a successful `ml_extension_put`
-is not evidence the extension works; call the endpoint before believing it. Either
-inline the shared logic into the extension module, or use a Data Service endpoint, which
-has no such restriction.
+The REST API Developer's Guide states that JavaScript library modules are not available
+to resource service extensions, because the REST API imports them dynamically, and
+recommends a Data Service endpoint when an endpoint needs shared library code. The worked
+extension in the **marklogic-project-setup** skill's REST-extensions reference does use
+`require()`, so the restriction is either version-specific or narrower than the guide's
+wording — **verify on your own version before designing around either claim.**
+
+What holds regardless: the import happens at request time, so a successful
+`ml_extension_put` is not evidence the extension works. Call the endpoint before
+believing it. If `require()` does fail there, inline the logic or move to a Data Service
+rather than assuming the module path is wrong.
 
 The same interface backs the Java, Node.js, and REST client APIs, so one extension
 serves all three.
+
+## Application coding practices
+
+`references/coding-practices.md` covers the practices that decide whether a module is
+production-grade, with worked examples:
+
+1. **Never concatenate untrusted input into a query string** — bind instead
+   (`sem.sparql` bindings map, `cts.parse` constraint bindings, `xdmp.eval` external
+   variables), and prefer `cts` constructors over any string grammar.
+2. **`xdmp.eval` is almost never right** — `require()`, `xdmp.invokeFunction`,
+   `xdmp.invoke`, and `xdmp.spawn`, and when each applies.
+3. **Amps, not broad roles**, for privilege escalation — including the SJS namespace rule
+   that makes amps fail silently.
+4. **Transaction discipline** — the 600 s timeout, why a query transaction cannot read its
+   own writes, and the spawn-batching pattern.
+5. **Writes carry permissions and collections explicitly.**
+6. **Error handling that reaches the caller** — `fn.error` with `RESTAPI-SRVEXERR`.
+7. **Testing** with marklogic-unit-test rather than ad-hoc eval calls.
+
+Read it before generating any module that takes caller input, writes documents, or is
+deployed behind a REST endpoint.
 
 ## Flux modules — always two, never one
 
@@ -165,6 +191,13 @@ parent fields. Details in **marklogic-bulk-import**.
 
 For anything that must survive a rebuild or reach another environment, put the modules
 in an ml-gradle project instead — see the **marklogic-project-setup** skill.
+
+## REST extensions and transforms
+
+The full contract — method exports, `context.outputTypes`, the `rs:` / `trans:` prefix
+rules, `RESTAPI-SRVEXERR` status control, why `declareUpdate()` is forbidden in an
+extension, the two deploy paths and how they shadow each other — is in the
+**marklogic-project-setup** skill's REST-extensions reference.
 
 ## Further reading
 

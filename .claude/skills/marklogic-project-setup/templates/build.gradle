@@ -9,3 +9,17 @@ plugins {
 repositories {
   mavenCentral()
 }
+
+// Uncomment to enable marklogic-unit-test. This deploys the test-runner modules
+// into the modules database, so keep it out of production deploys (or guard it
+// with `if (project.hasProperty('environmentName') && environmentName == 'dev')`).
+// Suites live in src/test/ml-modules/root/test/suites/ — see the `items` example.
+// Run with: gradle mlReloadModules mlUnitTest
+//
+// dependencies {
+//   mlBundle "com.marklogic:marklogic-unit-test-modules:1.4.0"
+// }
+//
+// ext {
+//   mlUnitTestRunner = "/test/default.xqy"
+// }

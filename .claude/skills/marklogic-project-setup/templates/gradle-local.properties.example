@@ -1,0 +1,17 @@
+# Copy to gradle-local.properties (gitignored) and fill in real credentials.
+#
+#   cp gradle-local.properties.example gradle-local.properties
+#
+# The net.saliman.properties plugin layers this file over gradle.properties, so
+# only the values that differ need to be listed. Keep real passwords out of
+# gradle.properties and the gradle-{env}.properties overlays — those are checked in.
+#
+# In CI, skip this file entirely and pass secrets on the command line:
+#   gradle mlDeploy -PmlPassword="$ML_PASSWORD" -PmlManagePassword="$ML_PASSWORD"
+# Override BOTH — setting only one produces a partial deploy that creates
+# databases and then fails on modules.
+
+mlUsername=admin
+mlPassword=CHANGE_ME
+mlManageUsername=admin
+mlManagePassword=CHANGE_ME

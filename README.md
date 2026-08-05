@@ -422,8 +422,8 @@ Only each skill's ~500-character description stays in context; the body loads wh
 | **`marklogic-bulk-import`** | Bulk loading via Flux — URLs, S3, JDBC, RDF, open-data portals, TDE-at-ingest, bulk reprocessing |
 | **`marklogic-query-authoring`** | Composing any query, or triaging one returning nothing / everything |
 | **`marklogic-data-modeling`** | Documents vs triples vs vectors, URI schemes, TDE views, the envelope pattern |
-| **`marklogic-project-setup`** | The work should be repeatable or deployable — ml-gradle project, dev/prod config, CI/CD |
-| **`marklogic-server-side-code`** | SJS/XQuery modules, REST extensions, CTF and Flux transforms, TDE templates |
+| **`marklogic-project-setup`** | The work should be repeatable or deployable — ml-gradle project and task set, REST extensions, credentials, dev/prod config, CI/CD |
+| **`marklogic-server-side-code`** | SJS/XQuery modules, REST extensions, CTF and Flux transforms, TDE templates, application coding practices |
 | **`marklogic-rag`** | RAG and semantic search on ML 12 — Lexical, Vector, and Graph paradigms |
 | **`marklogic-performance`** | A query is slow or timing out; reading plans, caches, forest health |
 | **`marklogic-fasttrack`** | Faceted search UI — search options set plus the React scaffold |

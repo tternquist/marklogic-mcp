@@ -102,7 +102,69 @@ export function lintSjs(code: string): LintFinding[] {
     });
   }
 
+  // 8. Query text built by string concatenation or template interpolation.
+  //    Every MarkLogic query language takes bindings; splicing values into the
+  //    source is both an injection vector and the usual cause of parse errors
+  //    that point hundreds of characters away from the real bug.
+  for (const [callee, hint] of INTERPOLATION_HINTS) {
+    const flagged = extractCallArgs(code, callee).some(
+      (args) => args.length > 0 && isInterpolated(args[0])
+    );
+    if (flagged) {
+      findings.push({
+        severity: "warning",
+        message: `${callee}() is being called with a query built by string concatenation or interpolation.`,
+        hint,
+      });
+    }
+  }
+
   return findings;
+}
+
+/** Callee → how to parameterize it instead of interpolating. */
+const INTERPOLATION_HINTS: ReadonlyArray<readonly [string, string]> = [
+  [
+    "sem.sparql",
+    "Pass values through the bindings map instead: sem.sparql('SELECT ?p WHERE { ?s ?p ?o }', " +
+      "{ s: sem.iri(value) }). Bindings carry type information; concatenation makes every term a " +
+      "lexical guess. FROM NAMED cannot be bound — validate the graph IRI against a known list.",
+  ],
+  [
+    "cts.parse",
+    "Pass the caller's search string as the first argument unmodified and supply constraints via " +
+      "the bindings map: cts.parse(userQuery, { category: cts.jsonPropertyReference('category') }). " +
+      "When the query shape is known, a cts constructor such as cts.jsonPropertyValueQuery takes the " +
+      "value as data and has no grammar to escape out of.",
+  ],
+  [
+    "xdmp.eval",
+    "Declare an external variable and pass it in the vars map: xdmp.eval('declare variable $v " +
+      "external; ...', { v: value }). Better still, avoid eval — require() the module, or use " +
+      "xdmp.invokeFunction(fn, { database: ... }) which passes a function rather than source text.",
+  ],
+  [
+    "xdmp.xqueryEval",
+    "Declare an external variable and pass it in the vars map rather than building XQuery source " +
+      "from values. xdmp.invoke() on a deployed module is preferable to either.",
+  ],
+];
+
+/**
+ * True when an argument looks like it splices a runtime value into query text:
+ * a template literal containing `${...}`, or a `+` concatenation where an operand
+ * is not itself a string literal.
+ */
+function isInterpolated(arg: string): boolean {
+  if (/`[^`]*\$\{/.test(arg)) return true;
+  // Strip string literals, leaving operators and identifiers. A surviving `+`
+  // means something other than literal-to-literal concatenation was involved.
+  const withoutLiterals = arg
+    .replace(/'(?:[^'\\]|\\.)*'/g, "''")
+    .replace(/"(?:[^"\\]|\\.)*"/g, '""');
+  if (!/\+/.test(withoutLiterals)) return false;
+  // Ignore pure literal concatenation ('a' + 'b'), which is just line wrapping.
+  return /\+\s*(?!['"])[A-Za-z_$]/.test(withoutLiterals) || /[A-Za-z_$\])]\s*\+/.test(withoutLiterals);
 }
 
 /**

@@ -1,0 +1,17 @@
+<metadata>
+  <title>Items Service</title>
+  <description>
+    <p>Lists items in a category, and creates a single item.</p>
+    <p>
+      Parameters are declared here WITHOUT the <b>rs:</b> prefix, but callers must
+      still send them prefixed (<code>?rs:category=books</code>). These declarations
+      are documentation, surfaced by <code>GET /v1/config/resources/items</code>;
+      they do not relax the runtime rule.
+    </p>
+  </description>
+  <method name="GET">
+    <param name="category" type="xs:string" required="true"/>
+    <param name="limit" type="xs:int"/>
+  </method>
+  <method name="POST"/>
+</metadata>
