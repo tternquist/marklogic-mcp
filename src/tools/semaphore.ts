@@ -27,10 +27,15 @@ export function registerSemaphoreTools(server: McpServer, clients: MarkLogicClie
     "semaphore_status",
     "USE THIS TOOL WHEN: the user wants to auto-tag documents with taxonomy concepts, classify content by topic or subject, " +
     "add controlled-vocabulary categories to documents, build faceted navigation from a thesaurus, or extract named concepts " +
-    "from text. Semaphore is the Progress Data Platform's AI-powered taxonomy and auto-classification engine.\n\n" +
+    "from text — or simply asks whether Semaphore is available, configured, or connected. Semaphore is the Progress " +
+    "Data Platform's AI-powered taxonomy and auto-classification engine, and this MCP server is its client.\n\n" +
     "Check whether the Semaphore Classification Server (SCS) is configured and reachable, and return its version. " +
-    "Run this first before any other semaphore_* tool to confirm connectivity.\n\n" +
-    "CONFIGURATION: Set SEMAPHORE_URL in the MCP server .env to the SCS base URL, e.g. http://semaphore:5058",
+    "Run this first before any other semaphore_* tool, and before telling a user Semaphore is unavailable — this tool " +
+    "is registered whether or not Semaphore is configured, so only calling it answers the question. " +
+    "For taxonomy authoring, follow up with semaphore_studio_status (KMM runs on a separate port with separate " +
+    "credentials). GUIDANCE: see the `semaphore-integration` skill.\n\n" +
+    "CONFIGURATION (operator-side, not a call parameter): SEMAPHORE_URL in the MCP server's own .env, e.g. " +
+    "http://semaphore:5058. Do not ask the user to set it in their shell and do not call the SCS directly.",
     {},
     async () => {
       if (!semaphore.configured) {
@@ -38,10 +43,14 @@ export function registerSemaphoreTools(server: McpServer, clients: MarkLogicClie
           content: [{
             type: "text",
             text:
-              "Semaphore is not configured.\n\n" +
-              "Set SEMAPHORE_URL in the MCP server .env to the base URL of the Semaphore Classification Server.\n" +
+              "Semaphore is not configured on this MCP server.\n\n" +
+              "Fix: set SEMAPHORE_URL in the MCP server's own .env to the base URL of the Semaphore " +
+              "Classification Server, then restart the server.\n" +
               "Example: SEMAPHORE_URL=http://semaphore.example.com:5058\n\n" +
-              "Note: port 5058 is the default SCS port. Your deployment may use a different port.",
+              "Note: port 5058 is the default SCS port. Your deployment may use a different port.\n" +
+              "NOTE: this is server-side configuration read at startup. Exporting SEMAPHORE_URL in a user " +
+              "shell has no effect, and calling the Classification Server directly is not a substitute — " +
+              "the MCP server is the client.",
           }],
           isError: true,
         };
@@ -71,10 +80,11 @@ export function registerSemaphoreTools(server: McpServer, clients: MarkLogicClie
   server.tool(
     "semaphore_studio_status",
     "Check whether Semaphore Studio (KMM — Knowledge Model Manager) is configured and reachable. " +
-    "Studio runs on a separate port from the Classification Server (default: 5080 vs 5058). " +
-    "Use this to verify connectivity before building or inspecting taxonomy models via the KMM API.\n\n" +
-    "CONFIGURATION: Set SEMAPHORE_HOST (shared with SCS), SEMAPHORE_KMM_PORT (default 5080), " +
-    "SEMAPHORE_USERNAME, and SEMAPHORE_PASSWORD in the MCP server .env.",
+    "Studio runs on a separate port from the Classification Server, with separate credentials (default: 5080 vs 5058), " +
+    "so it can be down while semaphore_status is healthy. Run this — together with semaphore_status — before any " +
+    "taxonomy authoring work, and before reporting that KMM is unavailable.\n\n" +
+    "CONFIGURATION (operator-side, not a call parameter): SEMAPHORE_HOST (shared with SCS), SEMAPHORE_KMM_PORT " +
+    "(default 5080), SEMAPHORE_USERNAME, and SEMAPHORE_PASSWORD in the MCP server's own .env.",
     {},
     async () => {
       if (!semaphore.configured) {

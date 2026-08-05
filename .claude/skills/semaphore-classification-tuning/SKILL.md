@@ -5,6 +5,11 @@ description: Diagnose and fix Semaphore content-classification quality problems 
 
 # Semaphore Classification Tuning
 
+Every tool here is served by **this MCP server** — call `semaphore_status` (CLS) and, for
+model edits, `semaphore_studio_status` (KMM) before concluding that a tuning change
+failed. A "not configured" or unreachable service looks exactly like bad classification
+from the outside. See **semaphore-integration → Using Semaphore via MCP**.
+
 ## The three fix levels — always try them in order
 
 | Level | Tool | Scope | Use when |

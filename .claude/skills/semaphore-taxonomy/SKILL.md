@@ -5,6 +5,12 @@ description: Author, load, validate, and publish SKOS taxonomies in Semaphore KM
 
 # Semaphore Taxonomy Authoring
 
+All of this runs through **this MCP server's `semaphore_*` tools** — no separate
+Semaphore client, and no host/port/credential passed at call time. `semaphore_status`
+(CLS) and `semaphore_studio_status` (KMM) are the connectivity checks; the `SEMAPHORE_*`
+variables they mention are the MCP server's own config, not something the user sets in
+their shell. See **semaphore-integration → Using Semaphore via MCP**.
+
 ## Build order (follow exactly — steps 5 and 6 are the ones people miss)
 
 0. **Check connectivity** — `semaphore_status`, `semaphore_studio_status`

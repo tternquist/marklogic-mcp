@@ -21,6 +21,54 @@ When the right approach is not immediately obvious, consult the "marklogic" skil
 the problem→capability router. It maps a goal to the MarkLogic-native approach, the
 discovery calls to run first, and the tools that implement it.
 
+
+── HOW YOU REACH MARKLOGIC AND SEMAPHORE — BOTH ARE MCP TOOLS ─────────────────
+
+This one server is the client for BOTH products. There is no separate SDK, CLI, or
+connection for you to establish, and no host, port, or credential you pass at call
+time — the server already holds them.
+
+  TARGET                              TOOLS                     CHECK IT WITH
+  ─────────────────────────────────── ───────────────────────── ──────────────────────
+  MarkLogic (content, search, admin)  ml_* / flux_* / dhf_*     ml_cluster_status then
+                                                                ml_databases_list
+  Semaphore CLS (classification)      semaphore_classify,       semaphore_status
+                                      semaphore_classify_batch,
+                                      semaphore_publish_sets,
+                                      semaphore_classes
+  Semaphore KMM/Studio (taxonomy)     semaphore_kmm_models_list, semaphore_studio_status
+                                      semaphore_concept_search,
+                                      semaphore_publish
+
+SEMAPHORE IS NOT A SEPARATE INTEGRATION THE USER MUST WIRE UP FIRST. If the
+semaphore_ tools are in your tool list, this server is the Semaphore client.
+Classification (CLS) and taxonomy authoring (KMM/Studio) are two different services
+on two different ports with two different credential paths, so check both —
+semaphore_status can be healthy while semaphore_studio_status is not, and vice versa.
+
+Both status tools take no arguments and are cheap. Call them before answering "is
+Semaphore available / configured / set up?". The semaphore tools are REGISTERED
+WHETHER OR NOT SEMAPHORE IS CONFIGURED — they return an explicit not-configured error
+rather than disappearing — so their presence in the tool list proves nothing either
+way. Only semaphore_status answers the question. Never report a service as
+unavailable without having called its status tool.
+
+ENV VARS ARE MCP SERVER CONFIG, NOT CALL PARAMETERS.
+ML_* and SEMAPHORE_* (SEMAPHORE_HOST, SEMAPHORE_SCS_PORT, SEMAPHORE_KMM_PORT,
+SEMAPHORE_USERNAME, SEMAPHORE_PASSWORD, SEMAPHORE_URL, SEMAPHORE_SSL) are read ONCE,
+by the MCP server process, from its OWN .env, at startup. They belong to whoever
+operates this server. Therefore:
+  • Do NOT ask the user to export them in their shell — nothing reads them there.
+  • Do NOT read them from your environment and hand-build an HTTP request.
+  • Do NOT curl the MarkLogic REST or Management API, the CLS, or KMM — not even as
+    a "quick connectivity check". The status tools ARE the connectivity check.
+  • Do NOT shell out to mlcp, a flux binary, or a Semaphore CLI.
+  • When a tool reports "not configured", the fix is an edit to the MCP server's .env
+    plus a restart. Report that plainly; do not route around the server.
+The one legitimate on-disk path is gradle against an ml-gradle project — a deliberate
+deployment artifact, not a workaround. See PROJECT SETUP / DEPLOYMENT below.
+
+
 ★ STARTING A PROJECT, NOT JUST EXPLORING? Read this first ★
 
    If the user's goal implies anything that should be REPEATABLE, SOURCE-CONTROLLED,
@@ -112,6 +160,13 @@ logged loudly at startup and surfaced in that resource.
 
 
 ── DECISION PRINCIPLES (in priority order) ────────────────────────────────────
+
+0. GO THROUGH THE TOOLS, AND ASK THEM RATHER THAN ASSUMING
+   MarkLogic and Semaphore are both reached through this server's tools — never via
+   curl, a CLI, or an env var you read yourself. Before saying a capability is
+   unavailable or unconfigured, call its status tool: ml_cluster_status for
+   MarkLogic, semaphore_status for the Semaphore Classification Server,
+   semaphore_studio_status for Semaphore KMM/Studio. See the section above.
 
 1. DISCOVER BEFORE YOU QUERY
    Never assume a collection name, field name, or index exists. Start with
@@ -797,6 +852,29 @@ MarkLogic and Semaphore together form the Progress Data Platform. Semaphore is
 an AI-powered taxonomy management and auto-classification platform. Together:
   • Semaphore classifies and enriches content with taxonomy concepts/categories.
   • MarkLogic stores, searches, and serves the enriched documents at scale.
+
+USING SEMAPHORE VIA MCP (read before anything else in this section):
+  Semaphore is reached through THIS server's semaphore tools — the same server that
+  carries the ml tools. No separate client, no credentials to pass, nothing for the
+  user to install. Start every Semaphore task with:
+    1. semaphore_status         — Classification Server (CLS): configured? reachable?
+    2. semaphore_studio_status  — KMM/Studio: reachable? credentials accepted?
+       (only needed for taxonomy authoring; classification alone needs only the CLS)
+  Then semaphore_publish_sets (which rule sets are live — none means nothing will
+  classify) and semaphore_classes (the class names you will see in results).
+
+  These tools exist even when Semaphore is NOT configured; they return an explicit
+  not-configured error. So never answer "Semaphore is not available / not set up"
+  from the tool list alone — call semaphore_status.
+
+  A healthy semaphore_status alongside a failing semaphore_kmm_models_list means the
+  KMM settings are wrong, not the CLS — the two services have separate ports and
+  separate credentials.
+
+  The SEMAPHORE_ variables below are the MCP SERVER's config, read from its own .env
+  at startup. They are not call parameters, and setting them in a user's shell does
+  nothing. Do not curl the CLS or KMM directly to "check" them.
+  Design guidance: the semaphore-integration skill.
 
 SEMAPHORE INTEGRATION PATTERNS (in recommended order):
 

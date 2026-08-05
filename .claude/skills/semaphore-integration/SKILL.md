@@ -1,9 +1,51 @@
 ---
 name: semaphore-integration
-description: Architect a Semaphore + MarkLogic content-classification integration — choosing between inline classification at ingest, post-ingest reprocess enrichment, a REST transform, or a full Data Hub Framework pipeline. Covers CLS and KMM configuration and connectivity checks, the canonical document model for storing categories, a production SJS enrichment module with the xdmp.httpPost body-Node requirement and CLS response parsing, path range indexes for classification facets, and Kubernetes network constraints. Use when planning or wiring up Semaphore against MarkLogic, not when tuning classification quality.
+description: Architect a Semaphore + MarkLogic content-classification integration, and know how Semaphore is reached in the first place — through this MCP server's semaphore_* tools, with semaphore_status (CLS) and semaphore_studio_status (KMM) as the first two calls, and SEMAPHORE_* env vars as MCP server config rather than anything the caller supplies. Use when asked whether Semaphore is available or configured, when planning or wiring up Semaphore against MarkLogic, and when choosing between inline classification at ingest, post-ingest reprocess enrichment, a REST transform, or a full Data Hub Framework pipeline. Covers CLS and KMM configuration and connectivity checks, the canonical document model for storing categories, a production SJS enrichment module with the xdmp.httpPost body-Node requirement and CLS response parsing, path range indexes for classification facets, and Kubernetes network constraints. Not for tuning classification quality.
 ---
 
 # Semaphore + MarkLogic Integration
+
+## Using Semaphore via MCP
+
+Semaphore is reached through this MCP server's `semaphore_*` tools — the same server
+that carries the `ml_*` MarkLogic tools. There is no separate client to install, no
+SDK, and no host, port, or credential for you to supply at call time. If the
+`semaphore_*` tools are in your tool list, this server is already the Semaphore client.
+
+**Two first checks, in this order, before any classification or taxonomy work:**
+
+1. **`semaphore_status`** — Classification Server (CLS). Configured? Reachable? Version?
+2. **`semaphore_studio_status`** — KMM / Studio. Reachable? Credentials accepted?
+
+Both take no arguments. CLS and KMM are separate services on separate ports with
+separate credential paths, so one can be healthy while the other is not — that is
+exactly why both get checked. `semaphore_status` healthy while `semaphore_kmm_*` calls
+fail is almost always a KMM settings problem, not a CLS problem.
+
+The `semaphore_*` tools are registered whether or not Semaphore is configured — they
+return an explicit not-configured error instead of disappearing. So their presence in
+the tool list is not evidence of connectivity, and nothing in the tool list is evidence
+of its absence. **Only `semaphore_status` answers the question.** Never tell a user
+Semaphore is unavailable, or that they need to set it up, without calling it first.
+
+### `SEMAPHORE_*` variables are server config, not caller parameters
+
+`SEMAPHORE_HOST`, `SEMAPHORE_SCS_PORT`, `SEMAPHORE_KMM_PORT`, `SEMAPHORE_USERNAME`,
+`SEMAPHORE_PASSWORD`, `SEMAPHORE_URL`, and `SEMAPHORE_SSL` are read **once, by the MCP
+server process, from its own `.env`**, at startup. They are the operator's
+configuration. Consequences for you:
+
+- Do not ask the user to export them in their own shell — nothing reads them there.
+- Do not read them from the environment and hand-build an HTTP call to the CLS or KMM.
+- Do not `curl` the CLS or KMM directly, even as a "quick connectivity check".
+  `semaphore_status` and `semaphore_studio_status` *are* the connectivity check.
+- When a tool reports "not configured", the fix is an edit to the MCP server's `.env`
+  and a server restart. Report that; do not work around it.
+
+The one place these values legitimately appear in your output is Flux's classifier
+flags (`--classifier-host` / `--classifier-port`), because the Flux runner is a separate
+process that dials the CLS itself. Prefer `flux_import(classify_with_semaphore=true)`,
+which fills them in from the server's own config.
 
 ## Choose a pattern
 
@@ -17,7 +59,10 @@ description: Architect a Semaphore + MarkLogic content-classification integratio
 **Default to Pattern A.** It runs outside MarkLogic, so it sidesteps the outbound-HTTP
 restrictions that make B fragile (see the network note below).
 
-## Configuration
+## Configuration reference (for whoever runs the MCP server)
+
+Use this when a status check comes back "not configured" and you need to tell the
+operator exactly what to put in the server's `.env`.
 
 **CLS (Classification Server)** — required for classification:
 - `SEMAPHORE_HOST`, optionally `SEMAPHORE_SCS_PORT` (default 5058)

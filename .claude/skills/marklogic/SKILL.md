@@ -1,12 +1,50 @@
 ---
 name: marklogic
-description: Router for working with MarkLogic through this MCP server — maps a user goal to the MarkLogic-native capability and the tools that implement it. Use at the start of any MarkLogic task when the right approach is not obvious: loading or importing data, searching, analytics and aggregation, graph and RDF work, semantic/vector search, schema and index discovery, content classification, performance diagnosis, or building a deployable project. Also covers the discovery steps to run before querying and the safety flags (ML_READONLY, ML_ALLOW_EVAL) that gate which tools exist.
+description: Router for working with MarkLogic through this MCP server — maps a user goal to the MarkLogic-native capability and the tools that implement it. Use at the start of any MarkLogic task when the right approach is not obvious: loading or importing data, searching, analytics and aggregation, graph and RDF work, semantic/vector search, schema and index discovery, content classification, performance diagnosis, or building a deployable project. Also use it when asked whether MarkLogic or Semaphore is available, connected, or configured — both are reached through this one server's tools, checked with ml_cluster_status, semaphore_status (Classification Server), and semaphore_studio_status (KMM/Studio), never by curling them or reading ML_/SEMAPHORE_ environment variables. Also covers the discovery steps to run before querying and the safety flags (ML_READONLY, ML_ALLOW_EVAL) that gate which tools exist.
 ---
 
 # MarkLogic — problem → capability router
 
 Identify the MarkLogic-native approach **before** reaching for a tool. Picking the
 wrong one wastes round-trips and produces worse results.
+
+## Everything runs through this MCP server
+
+MarkLogic **and** Semaphore are both reached through this server's tools. There is no
+separate client, SDK, or CLI to install, and no host, port, or credential for you to
+supply at call time — the server already holds the connection.
+
+| Target | Tools | Check connectivity with |
+|---|---|---|
+| MarkLogic (content, search, admin) | `ml_*`, `flux_*`, `dhf_*` | `ml_cluster_status`, then `ml_databases_list` |
+| Semaphore CLS — classification | `semaphore_classify`, `semaphore_classify_batch`, `semaphore_publish_sets`, `semaphore_classes` | **`semaphore_status`** |
+| Semaphore KMM / Studio — taxonomy authoring | `semaphore_kmm_models_list`, `semaphore_concept_search`, `semaphore_publish` | **`semaphore_studio_status`** |
+
+Semaphore is **not a separate integration the user has to wire up first**. If the
+`semaphore_*` tools are in your tool list, this server is the Semaphore client. CLS and
+KMM are distinct services on distinct ports with distinct credentials, so check both:
+one can be healthy while the other is not.
+
+Neither status tool takes arguments, and both are cheap. Call them before answering
+"is Semaphore available?" or "is MarkLogic up?" — the Semaphore tools are registered
+whether or not Semaphore is configured, so their presence proves nothing either way and
+`semaphore_status` returns either the live CLS URL and version or an explicit
+not-configured error. Never report a service as unavailable without having called it.
+
+### Environment variables are server config, not your parameters
+
+`ML_*` and `SEMAPHORE_*` are read **once, by the MCP server process, from its own
+`.env`** at startup. They belong to whoever operates the server. So:
+
+- Do not ask the user to export them in their shell — nothing reads them there.
+- Do not read them yourself and hand-build an HTTP call.
+- Do not `curl` the MarkLogic REST or Management API, the CLS, or KMM, and do not shell
+  out to `mlcp`, a `flux` binary, or a Semaphore CLI. Use the tools.
+- When a tool reports "not configured", the fix is an edit to the MCP server's `.env`
+  plus a restart. Say that plainly instead of routing around the server.
+
+The exception is `gradle` on an ml-gradle project — that is a deliberate on-disk
+deployment path, not a workaround. See **marklogic-project-setup**.
 
 ## Problem → approach → tools
 
@@ -38,6 +76,7 @@ wrong one wastes round-trips and produces worse results.
 | **marklogic-bulk-import** | Flux import recipes, Socrata/GDELT, JSONL wrappers, reprocess transforms |
 | **marklogic-query-authoring** | search vs structured vs Optic vs SPARQL, index requirements, empty-result triage |
 | **marklogic-project-setup** | ml-gradle project template, multi-environment, deploy failures |
+| **semaphore-integration** | using Semaphore via MCP, CLS/KMM config, the four integration patterns |
 | **semaphore-taxonomy** | SKOS authoring, SKOS-XL reification, publish workflow |
 | **semaphore-classification-tuning** | classification quality: labels → threshold → .kid template |
 
@@ -56,6 +95,19 @@ field name.
 
 For query building specifically, `ml_search_surface` does fields + indexes + options in
 one call.
+
+For Semaphore work the equivalent order is:
+
+1. **`semaphore_status`** — is the CLS configured and reachable?
+2. **`semaphore_studio_status`** — is KMM reachable and are its credentials accepted?
+   (Only needed for taxonomy authoring; classification alone needs the CLS.)
+3. **`semaphore_publish_sets`** — which taxonomy rule sets are actually live in the CLS.
+   No rule sets means nothing will classify, however good the query.
+4. **`semaphore_classes`** — the classification class names you will see in results.
+
+A `semaphore_status` that is healthy while `semaphore_kmm_models_list` fails points at
+the KMM settings (`SEMAPHORE_KMM_PORT`, `SEMAPHORE_USERNAME`, `SEMAPHORE_PASSWORD`), not
+at the CLS.
 
 ## Choosing between overlapping tools
 

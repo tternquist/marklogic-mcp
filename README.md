@@ -428,7 +428,7 @@ Only each skill's ~500-character description stays in context; the body loads wh
 | **`marklogic-performance`** | A query is slow or timing out; reading plans, caches, forest health |
 | **`marklogic-fasttrack`** | Faceted search UI — search options set plus the React scaffold |
 | **`marklogic-oauth-setup`** | OAuth2/OIDC bearer auth, or "token authenticates but has no roles" |
-| **`semaphore-integration`** | Wiring Semaphore to MarkLogic — pattern choice, CLS/KMM config, enrichment module |
+| **`semaphore-integration`** | Reaching Semaphore through this server at all (status checks first), then pattern choice, CLS/KMM config, enrichment module |
 | **`semaphore-taxonomy`** | Authoring, loading, validating, and publishing SKOS taxonomies in KMM |
 | **`semaphore-classification-tuning`** | Classification results are wrong — labels → threshold → `.kid` weights |
 
@@ -728,6 +728,10 @@ Requires `ML_ALLOW_EVAL=true`; `dhf_flow_run` additionally requires `ML_READONLY
 ### Semaphore (25 tools)
 
 Semaphore is the Progress Data Platform taxonomy and classification engine. These tools manage the full lifecycle: load a SKOS vocabulary into KMM, configure the publisher, publish rules to the Classification Server (CLS), and classify content.
+
+> **Semaphore is reached through this MCP server** — the same connection that serves the `ml_*` tools. Agents should not curl the CLS/KMM or shell out to a Semaphore client, and end users never pass a host, port, or credential at call time. The `SEMAPHORE_*` variables below are read by the MCP server process from its own `.env` at startup.
+>
+> **Start with `semaphore_status` (CLS) and `semaphore_studio_status` (KMM).** These are two separate services on separate ports with separate credentials, so one can be healthy while the other is not. Both tools are registered whether or not Semaphore is configured — they return an explicit not-configured error — so an agent should never conclude Semaphore is unavailable from the tool list alone.
 
 **CLS (Classification Server) — port 5058**
 
