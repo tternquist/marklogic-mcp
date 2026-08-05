@@ -169,9 +169,38 @@ three fix levels.
 | Publishes but classifies nothing | plain-SKOS publisher config not fixed |
 | `score=0` right after publish | Rulenet index still building — wait 1–2 minutes and retry |
 | Low rule count warning | run `semaphore_publish_diagnose`, then retry the publish |
+| `semaphore_publish` returns TIMEOUT | Not a failure — the job is still unconfirmed. See below |
+| HTTP "timeout of 30000ms exceeded" | Client-side `SEMAPHORE_TIMEOUT_MS` abort, not a server error. See below |
 
 Rule count should be roughly proportionate to concept count. A large mismatch means one
 of the first two rows above.
+
+## When a publish times out
+
+Two different timeouts get confused, and neither means the publish failed — the
+server-side job usually keeps running after either one:
+
+- **`wait_for_completion` TIMEOUT** — polling gave up before the job confirmed. The
+  publish output includes a `Job ID`; re-check it without re-triggering:
+  `semaphore_publish model_uri=… job_id=<id>` (add `wait_for_completion=true` and a
+  higher `timeout_seconds` to block until done).
+- **HTTP client timeout** (`timeout of 30000ms exceeded`) — the *trigger request itself*
+  hit `SEMAPHORE_TIMEOUT_MS` (default 30 s). Common on first-time workspace
+  initialization and large models. Raise `SEMAPHORE_TIMEOUT_MS` in the MCP server
+  `.env` (e.g. `120000`) if it recurs.
+
+After either timeout, work through — do **not** blindly re-trigger the publish first:
+
+1. `semaphore_status` — is the server responsive at all?
+2. Wait 1–2 minutes, then `semaphore_publish_sets` — did the rule set appear anyway?
+3. `semaphore_publish_diagnose model_uri=…` — concept count vs CLS rule count
+4. Repeated hangs: the publisher must reach CLS **from the KMM server** — the host/port
+   in the Studio publisher environment must resolve there, not just from your machine.
+5. Server logs: `/var/opt/Semaphore/logs/Publisher.log` on the Semaphore host.
+
+Prevention: publish a 10–20-concept model first to prove the pipeline (workspace init,
+environment, CLS connectivity) before loading a full vocabulary — pipeline problems then
+surface in seconds instead of inside a long publish.
 
 ## Authentication
 

@@ -6,6 +6,7 @@ import {
   WriteProtectedError,
   EvalDisabledError,
   ForbiddenError,
+  appendRangeIndexHint,
   toToolError,
 } from "../../src/utils/errors.js";
 
@@ -132,5 +133,34 @@ describe("toToolError", () => {
     expect(toToolError("just a string")).toBe("just a string");
     expect(toToolError(42)).toBe("42");
     expect(toToolError(null)).toBe("null");
+  });
+});
+
+describe("appendRangeIndexHint", () => {
+  it.each([
+    "XDMP-PATHRIDXNOTFOUND: No path range index for properties/cost_per_kg_usd",
+    "XDMP-ELEMRIDXNOTFOUND: No element range index for age",
+    "XDMP-FIELDRIDXNOTFOUND: No field range index",
+    "XDMP-ELEMATTRRIDXNOTFOUND: No attribute range index",
+    "XDMP-GEOIDXNOTFOUND: No geospatial index",
+  ])("appends the hint for %s", (msg) => {
+    const result = appendRangeIndexHint(msg);
+    expect(result).toContain(msg);
+    expect(result).toContain("Hint:");
+    expect(result).toContain("ml_indexes_list");
+    expect(result).toContain("ml_reindex_status");
+  });
+
+  it("mentions the exact-match and index-kind traps", () => {
+    const result = appendRangeIndexHint("XDMP-PATHRIDXNOTFOUND: nope");
+    expect(result).toContain("character-for-character");
+    expect(result).toContain("cts.pathReference");
+    expect(result).toContain("cts.jsonPropertyRangeQuery");
+  });
+
+  it("leaves unrelated errors untouched", () => {
+    expect(appendRangeIndexHint("XDMP-ARGTYPE: wrong type")).toBe("XDMP-ARGTYPE: wrong type");
+    expect(appendRangeIndexHint("SQL-TABLENOTFOUND")).toBe("SQL-TABLENOTFOUND");
+    expect(appendRangeIndexHint("plain error")).toBe("plain error");
   });
 });

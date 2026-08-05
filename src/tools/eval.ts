@@ -1,7 +1,7 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import type { MarkLogicClients } from "../client/index.js";
-import { toToolError } from "../utils/errors.js";
+import { appendRangeIndexHint, toToolError } from "../utils/errors.js";
 import { formatLintFindings, lintSjs } from "../utils/eval-lint.js";
 
 export function registerEvalTools(server: McpServer, clients: MarkLogicClients, allowEval: boolean): void {
@@ -35,7 +35,7 @@ export function registerEvalTools(server: McpServer, clients: MarkLogicClients, 
         const results = await clients.eval.evalXQuery(xquery, vars as Record<string, unknown> | undefined, database);
         return { content: [{ type: "text", text: JSON.stringify(results, null, 2) }] };
       } catch (err) {
-        return { content: [{ type: "text", text: toToolError(err) }], isError: true };
+        return { content: [{ type: "text", text: appendRangeIndexHint(toToolError(err)) }], isError: true };
       }
     }
   );
@@ -96,6 +96,13 @@ export function registerEvalTools(server: McpServer, clients: MarkLogicClients, 
         };
       } catch (err) {
         const msg = toToolError(err);
+        // Range-index resolution failures get their own hint and skip the generic
+        // XDMP branch below — "index deployed but reference not resolving" has a
+        // specific fix (exact-match the configured index) the generic text buries.
+        const withIdxHint = appendRangeIndexHint(msg);
+        if (withIdxHint !== msg) {
+          return { content: [{ type: "text", text: withIdxHint }], isError: true };
+        }
         const is500 = err instanceof Error && msg.includes("500");
         if (is500) {
           const scriptKb = Math.round(Buffer.byteLength(javascript, "utf8") / 1024);

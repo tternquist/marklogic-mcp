@@ -19,6 +19,37 @@ import { z } from "zod";
 import type { MarkLogicClients } from "../client/index.js";
 import { toToolError } from "../utils/errors.js";
 
+/**
+ * Detect an HTTP-client timeout (axios ECONNABORTED / "timeout of Nms exceeded")
+ * and return recovery guidance, or null when the error is something else.
+ *
+ * This is the "silent 30-second timeout" failure mode: the request to KMM hit the
+ * SEMAPHORE_TIMEOUT_MS axios limit (default 30 000 ms) and was aborted CLIENT-side.
+ * The server-side operation (publish, workspace init) usually keeps running — so the
+ * right move is to check its outcome, not to blindly re-trigger it.
+ */
+function semaphoreHttpTimeoutHint(err: unknown): string | null {
+  const code = (err as { code?: string })?.code;
+  const msg = err instanceof Error ? err.message : String(err);
+  const isTimeout = code === "ECONNABORTED" || /timeout of \d+ms exceeded/i.test(msg);
+  if (!isTimeout) return null;
+  return [
+    `HTTP request to Semaphore timed out client-side: ${msg}`,
+    "",
+    "This is the MCP client's SEMAPHORE_TIMEOUT_MS limit (default 30s) — NOT proof the",
+    "server-side operation failed. A publish or workspace init usually keeps running on the",
+    "KMM server after the connection is dropped.",
+    "",
+    "RECOVER (in order):",
+    "  1. semaphore_status — is the server up and responsive at all?",
+    "  2. Wait 1–2 minutes, then semaphore_publish_sets — did the rule set appear anyway?",
+    "  3. semaphore_publish_diagnose  model_uri=<model>  — compare KMM concept count vs CLS rules.",
+    "  4. If the operation genuinely needs longer than 30s (large models, first-time workspace",
+    "     init), raise SEMAPHORE_TIMEOUT_MS in the MCP server .env (e.g. 120000) and retry.",
+    "  5. Server-side logs: /var/opt/Semaphore/logs/Publisher.log on the Semaphore host.",
+  ].join("\n");
+}
+
 export function registerSemaphoreTools(server: McpServer, clients: MarkLogicClients): void {
   const { semaphore } = clients;
 
@@ -1045,7 +1076,13 @@ export function registerSemaphoreTools(server: McpServer, clients: MarkLogicClie
     "ASYNC vs SYNC:\n" +
     "  Large models (500+ concepts) will time out on synchronous publish. " +
     "  Use async=true (the default) — the tool returns a job ID immediately. " +
-    "  Poll the job status by calling this tool again with job_id to check completion.\n\n" +
+    "  Re-check that job later by calling this tool again with job_id=<id> (no new publish is triggered).\n\n" +
+    "TIMEOUTS ARE NOT FAILURES:\n" +
+    "  • wait_for_completion=true returning TIMEOUT means the job is still unconfirmed — re-check with\n" +
+    "    job_id, or raise timeout_seconds. The publish usually keeps running server-side.\n" +
+    "  • An HTTP timeout on the trigger call itself (SEMAPHORE_TIMEOUT_MS, default 30s) also does NOT\n" +
+    "    abort the server-side publish — check semaphore_publish_sets / semaphore_publish_diagnose\n" +
+    "    before re-triggering, and raise SEMAPHORE_TIMEOUT_MS if it recurs.\n\n" +
     "PLAIN SKOS MODELS:\n" +
     "  If the model uses plain skos:prefLabel (not SKOS-XL), run " +
     "semaphore_publish_config_fix_plain_skos BEFORE publishing. " +
@@ -1086,11 +1123,23 @@ export function registerSemaphoreTools(server: McpServer, clients: MarkLogicClie
         "for models with more than a few hundred concepts."
       ),
       wait_for_completion: z.boolean().optional().describe(
-        "If true, poll for publish completion by querying the model's publish event log (up to 5 minutes). " +
-        "Returns COMPLETE/FAILED/TIMEOUT. Use this to confirm the publish finished before classifying."
+        "If true, poll for publish completion (default limit 5 minutes; override with timeout_seconds). " +
+        "Returns COMPLETE/FAILED/TIMEOUT. Use this to confirm the publish finished before classifying. " +
+        "TIMEOUT is not failure — re-check with job_id."
+      ),
+      job_id: z.string().optional().describe(
+        "Job ID from a previously triggered publish (shown as 'Job ID' in that call's output). " +
+        "When set, NO new publish is triggered — the tool reports the job's current status instead, " +
+        "including the CLS rule-count check on completion. Use this after a TIMEOUT to keep watching " +
+        "the same publish rather than re-triggering it. Combine with wait_for_completion=true to block " +
+        "until the job finishes."
+      ),
+      timeout_seconds: z.number().int().positive().max(3600).optional().describe(
+        "How long wait_for_completion polls before returning TIMEOUT (default: 300). Large models " +
+        "(5000+ concepts) or first-time workspace initialization can need more."
       ),
     },
-    async ({ model_uri, config, environment, language, task_name, async: useAsync, wait_for_completion }) => {
+    async ({ model_uri, config, environment, language, task_name, async: useAsync, wait_for_completion, job_id, timeout_seconds }) => {
       if (!semaphore.kmmBaseUrl) {
         return {
           content: [{ type: "text", text: "KMM is not configured. Set SEMAPHORE_HOST in the MCP server .env." }],
@@ -1103,7 +1152,106 @@ export function registerSemaphoreTools(server: McpServer, clients: MarkLogicClie
           isError: true,
         };
       }
+
+      const modelName = model_uri.replace(/^model:/, "");
+      const timeoutMs = (timeout_seconds ?? 300) * 1000;
+
+      // Rule-count sanity check shared by every COMPLETE path.
+      // Auto-check loaded rule count by comparing pak-size estimate against KMM concept count.
+      // The pak-size heuristic is unreliable for small taxonomies (≤ ~25 concepts) — their
+      // paks are legitimately small. Use KMM concept count to distinguish a true 1-rule
+      // failure from a correctly published small taxonomy.
+      const completionLines = async (): Promise<string[]> => {
+        const out: string[] = [];
+        const [ruleCount, kmmCount] = await Promise.all([
+          semaphore.clsRuleCount(modelName.toLowerCase()),
+          semaphore.kmmConceptCount(model_uri),
+        ]);
+        out.push(`  Rules loaded in CLS: ${ruleCount >= 0 ? ruleCount : "(unknown)"}`);
+        out.push("");
+        // Only warn if the estimated rule count looks disproportionately low relative to
+        // the number of concepts. For small taxonomies (kmmCount ≤ 10) the heuristic is
+        // unreliable — just suggest semaphore_classify to verify.
+        const likelyBroken = ruleCount >= 0 && ruleCount <= 1 && kmmCount > 10;
+        if (likelyBroken) {
+          out.push("⚠  WARNING: Only 1 rule loaded — this strongly suggests a publisher config problem.");
+          out.push("   Root cause: the default publisher config uses SKOS-XL label queries that hit");
+          out.push("   the empty default graph of the global SPARQL endpoint. Each model's data lives");
+          out.push(`   in the named graph urn:x-evn-master:${modelName}.`);
+          out.push("   Fix: run  semaphore_publish_config_fix_plain_skos  then re-publish.");
+        } else if (ruleCount > 1) {
+          out.push("✓ Publish completed successfully.");
+          out.push("  • semaphore_classify  threshold=0  content='<test text>'  — test classification");
+        } else {
+          out.push("✓ Publish completed.");
+          out.push("  • semaphore_classify  threshold=0  content='<test text>'  — verify classification works");
+          out.push("  (Rule count estimate is low but taxonomy is small — this is expected.)");
+        }
+        return out;
+      };
+
+      const timeoutLines = (jobId?: string): string[] => [
+        `Publish did not complete within ${Math.round(timeoutMs / 1000)}s. TIMEOUT means "still unconfirmed",`,
+        "NOT \"failed\" — large models and first-time workspace initialization keep running server-side.",
+        "",
+        "NEXT STEPS:",
+        ...(jobId ? [`  • Re-check WITHOUT re-triggering: semaphore_publish  model_uri="${model_uri}"  job_id="${jobId}"`] : []),
+        "  • semaphore_publish_sets — has the rule set appeared / been updated?",
+        `  • semaphore_publish_diagnose  model_uri="${model_uri}"  — KMM concept count vs CLS rule count`,
+        "  • Needs longer? Re-run with a higher timeout_seconds, or check Studio → model → Publisher tab.",
+        "  • Repeated hangs: the publisher must be able to reach CLS FROM THE KMM SERVER — the host/port",
+        "    in the publisher environment must resolve there, not just from this machine.",
+      ];
+
+      const failureLines = (message?: string): string[] => [
+        "Publish FAILED.",
+        ...(message ? [`  Server message: ${message}`] : []),
+        "",
+        "DIAGNOSE:",
+        `  • semaphore_publish_diagnose  model_uri="${model_uri}"  — concept/label/rule mismatches`,
+        "  • Plain-SKOS model (skos:prefLabel literals)? Run semaphore_publish_config_fix_plain_skos, then re-publish.",
+        "  • Full error: Studio → model → Publisher tab, or /var/opt/Semaphore/logs/Publisher.log on the Semaphore host.",
+      ];
+
       try {
+        // ── job_id given: report status of an existing publish job; trigger nothing ──
+        if (job_id) {
+          const lines = [
+            "SEMAPHORE PUBLISH JOB STATUS",
+            "─".repeat(50),
+            "",
+            `  Model:  ${model_uri}`,
+            `  Job ID: ${job_id}`,
+            "",
+          ];
+          let jobState = await semaphore.kmmAsyncJobStatus(job_id);
+          if (jobState.status === "RUNNING" && wait_for_completion === true) {
+            const polled = await semaphore.kmmWaitForAsyncJob(job_id, timeoutMs);
+            if (polled.status === "TIMEOUT") {
+              lines.push(...timeoutLines(job_id));
+              return { content: [{ type: "text", text: lines.join("\n") }] };
+            }
+            jobState = { status: polled.status, message: polled.error };
+          }
+          if (jobState.status === "NOT_FOUND") {
+            lines.push("Job not found — KMM job records expire. Check the outcome directly:");
+            lines.push("  • semaphore_publish_sets — is the rule set active?");
+            lines.push(`  • semaphore_publish_diagnose  model_uri="${model_uri}"`);
+          } else if (jobState.status === "COMPLETE") {
+            lines.push("  Status: COMPLETE");
+            lines.push("");
+            lines.push(...await completionLines());
+          } else if (jobState.status === "FAILED") {
+            lines.push(...failureLines(jobState.message));
+          } else {
+            lines.push("  Status: RUNNING — the publish is still in progress.");
+            lines.push("");
+            lines.push(`  Re-check: semaphore_publish  model_uri="${model_uri}"  job_id="${job_id}"`);
+            lines.push("  Or block until done: add wait_for_completion=true (raise timeout_seconds for large models).");
+          }
+          return { content: [{ type: "text", text: lines.join("\n") }] };
+        }
+
         const sinceTimestamp = new Date().toISOString();
         const result = await semaphore.kmmPublish(model_uri, {
           config,
@@ -1113,7 +1261,6 @@ export function registerSemaphoreTools(server: McpServer, clients: MarkLogicClie
           taskName: task_name,
         });
 
-        const modelName = model_uri.replace(/^model:/, "");
         const publishTarget = task_name ? `${model_uri} (task: ${task_name})` : model_uri;
         const lines = [
           "SEMAPHORE PUBLISH TRIGGERED",
@@ -1131,51 +1278,27 @@ export function registerSemaphoreTools(server: McpServer, clients: MarkLogicClie
         if (result.accepted && (wait_for_completion === true)) {
           // Prefer async job polling when we have a real job ID (more reliable than SPARQL graph polling)
           const rawPoll = result.jobId
-            ? await semaphore.kmmWaitForAsyncJob(result.jobId, 300_000)
-            : await semaphore.waitForPublish(model_uri, sinceTimestamp);
+            ? await semaphore.kmmWaitForAsyncJob(result.jobId, timeoutMs)
+            : await semaphore.waitForPublish(model_uri, sinceTimestamp, timeoutMs);
           const pollMessage = (rawPoll as { message?: string }).message
             ?? (rawPoll as { error?: string }).error;
           lines.push(`  Status: ${rawPoll.status}`);
           if (pollMessage) lines.push(`  Message: ${pollMessage}`);
           lines.push("");
           if (rawPoll.status === "COMPLETE") {
-            // Auto-check loaded rule count by comparing pak-size estimate against KMM concept count.
-            // The pak-size heuristic is unreliable for small taxonomies (≤ ~25 concepts) — their
-            // paks are legitimately small. Use KMM concept count to distinguish a true 1-rule
-            // failure from a correctly published small taxonomy.
-            const [ruleCount, kmmCount] = await Promise.all([
-              semaphore.clsRuleCount(modelName.toLowerCase()),
-              semaphore.kmmConceptCount(model_uri),
-            ]);
-            lines.push(`  Rules loaded in CLS: ${ruleCount >= 0 ? ruleCount : "(unknown)"}`);
-            lines.push("");
-            // Only warn if the estimated rule count looks disproportionately low relative to
-            // the number of concepts. For small taxonomies (kmmCount ≤ 10) the heuristic is
-            // unreliable — just suggest semaphore_classify to verify.
-            const likelyBroken = ruleCount >= 0 && ruleCount <= 1 && kmmCount > 10;
-            if (likelyBroken) {
-              lines.push("⚠  WARNING: Only 1 rule loaded — this strongly suggests a publisher config problem.");
-              lines.push("   Root cause: the default publisher config uses SKOS-XL label queries that hit");
-              lines.push("   the empty default graph of the global SPARQL endpoint. Each model's data lives");
-              lines.push(`   in the named graph urn:x-evn-master:${modelName}.`);
-              lines.push("   Fix: run  semaphore_publish_config_fix_plain_skos  then re-publish.");
-            } else if (ruleCount > 1) {
-              lines.push("✓ Publish completed successfully.");
-              lines.push("  • semaphore_classify  threshold=0  content='<test text>'  — test classification");
-            } else {
-              lines.push("✓ Publish completed.");
-              lines.push("  • semaphore_classify  threshold=0  content='<test text>'  — verify classification works");
-              lines.push("  (Rule count estimate is low but taxonomy is small — this is expected.)");
-            }
+            lines.push(...await completionLines());
           } else if (rawPoll.status === "FAILED") {
-            lines.push("Publish FAILED. Check Semaphore Studio Publisher tab for error details.");
+            lines.push(...failureLines(pollMessage));
           } else {
-            lines.push("Publish timed out (5 min). Check Semaphore Studio Publisher tab for status.");
+            lines.push(...timeoutLines(result.jobId));
           }
         } else if (result.accepted) {
           lines.push(`  Status: ${result.status ?? "ACCEPTED"}`);
           lines.push("");
           lines.push("The publish job is running asynchronously.");
+          if (result.jobId) {
+            lines.push(`Check on it without re-triggering: semaphore_publish  model_uri="${model_uri}"  job_id="${result.jobId}"`);
+          }
           lines.push("After a minute or two, verify completion:");
           lines.push("  • semaphore_publish_sets  — confirm new rule set appears as active");
           lines.push("  • semaphore_classes       — confirm class names are present");
@@ -1198,6 +1321,10 @@ export function registerSemaphoreTools(server: McpServer, clients: MarkLogicClie
 
         return { content: [{ type: "text", text: lines.join("\n") }] };
       } catch (err) {
+        const timeoutHint = semaphoreHttpTimeoutHint(err);
+        if (timeoutHint) {
+          return { content: [{ type: "text", text: timeoutHint }], isError: true };
+        }
         return { content: [{ type: "text", text: toToolError(err) }], isError: true };
       }
     }
@@ -1313,6 +1440,19 @@ export function registerSemaphoreTools(server: McpServer, clients: MarkLogicClie
         ];
         return { content: [{ type: "text", text: lines.join("\n") }] };
       } catch (err) {
+        // This tool bootstraps the publisher workspace by triggering a publish, so it
+        // hits the same SEMAPHORE_TIMEOUT_MS client-side abort as semaphore_publish.
+        const timeoutHint = semaphoreHttpTimeoutHint(err);
+        if (timeoutHint) {
+          return {
+            content: [{
+              type: "text",
+              text: timeoutHint + "\n\nThen re-run semaphore_publish_config_fix_plain_skos — the workspace bootstrap " +
+                "usually completes server-side, so the retry finds the workspace and applies the patch quickly.",
+            }],
+            isError: true,
+          };
+        }
         return { content: [{ type: "text", text: toToolError(err) }], isError: true };
       }
     }

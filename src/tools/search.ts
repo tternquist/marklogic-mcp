@@ -1,7 +1,7 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import type { MarkLogicClients } from "../client/index.js";
-import { toToolError } from "../utils/errors.js";
+import { appendRangeIndexHint, toToolError } from "../utils/errors.js";
 import {
   aggregateByField,
   projectRow,
@@ -198,7 +198,7 @@ export function registerSearchTools(server: McpServer, clients: MarkLogicClients
         const result = await clients.search.values(values_name, { query, limit, direction, aggregate, options, database });
         return { content: [{ type: "text", text: JSON.stringify(result, null, 2) }] };
       } catch (err) {
-        return { content: [{ type: "text", text: toToolError(err) }], isError: true };
+        return { content: [{ type: "text", text: appendRangeIndexHint(toToolError(err)) }], isError: true };
       }
     }
   );
@@ -334,7 +334,7 @@ export function registerSearchTools(server: McpServer, clients: MarkLogicClients
         const payload = first?.value ?? first;
         return { content: [{ type: "text", text: JSON.stringify(payload, null, 2) }] };
       } catch (err) {
-        const msg = toToolError(err);
+        const msg = appendRangeIndexHint(toToolError(err));
         const hint = msg.includes("XDMP-QUERY") || msg.includes("XDMP-PARSE")
           ? "\nHint: a grammar parse error usually means an unmatched quote, an unknown operator (only AND/OR/NOT/NEAR/-/+ are built in), or a tag without a matching binding. Run ml_parse_query without bindings to confirm the boolean structure parses, then add bindings one at a time."
           : msg.includes("CTSDIRQUERY") || msg.includes("scalar")

@@ -180,12 +180,27 @@ built-in `Documents` database, which is for ad-hoc sandbox use only. When workin
 against an existing project, run `ml_databases_list` and `ml_servers_list` first to find
 the right database and app server rather than assuming `Documents`.
 
-## After the first deploy
+## After every deploy — validate, don't assume
 
-- `ml_databases_list` — confirm `myapp-content`, `myapp-schemas`, `myapp-triggers`
-- `ml_servers_list` — confirm the REST server on the configured port
-- `ml_schema_get_tde` — confirm the TDE template registered
-- `ml_extension_list` — confirm REST extensions deployed
+`mlDeploy` / `mlReloadModules` exiting cleanly only means the Manage API accepted the
+request. The failures worth guarding against here are **silent**: a wrong `mlRestPort`
+in `gradle.properties` makes every subsequent request (curl tests, module reloads,
+MCP tool calls) target whatever app server actually listens on that port — old code and
+404s, not errors. Run this checklist after the first deploy and after any config change:
+
+1. **Port** — `ml_servers_list`, and confirm the app server for *this* project is on the
+   port `gradle.properties` says (`mlRestPort`). If they disagree, fix
+   `gradle.properties` and re-run `mlReloadModules`; everything deployed so far went to
+   the wrong place.
+2. **Databases** — `ml_databases_list`: `myapp-content`, `myapp-schemas`, `myapp-triggers`
+3. **Indexes** — `ml_indexes_list database=myapp-content`: every range index from
+   `content-database.json` is present. Then `ml_reindex_status` until `ready=true`, and
+   probe one query per new index (see **marklogic-query-authoring**, "Range-index
+   errors") — deployed is not the same as resolvable.
+4. **TDE** — `ml_schema_get_tde` to confirm registration; `ml_tde_validate` to prove it
+   extracts rows
+5. **Extensions** — `ml_extension_list`, then hit one endpoint with a trivial request
+   and check the response is from the *new* code
 
 Then load data with the **marklogic-bulk-import** skill and query it with
 **marklogic-query-authoring**.
@@ -199,6 +214,7 @@ Then load data with the **marklogic-bulk-import** skill and query it with
 | TDE deploys but no rows in the view | template used `.json`, not `.tdej` |
 | `ml-data` documents load with no collections | used a global `collections=` key |
 | REST extension 404s after deploy | missing `services/metadata/<name>.xml` |
+| `mlReloadModules` "succeeds" but the endpoint serves old code / 404s | `mlRestPort` in `gradle.properties` doesn't match the actual app server — verify with `ml_servers_list` |
 
 ## Further reading
 
