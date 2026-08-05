@@ -1,6 +1,6 @@
 ---
 name: marklogic-project-setup
-description: Scaffold a deployable, source-controlled MarkLogic project using ml-gradle. Use when the goal implies something repeatable, version-controlled, or deployed to another environment — building an app, API, service, or backend; creating a new project or repo; adding a REST endpoint, transform, or resource extension; adding indexes or TDE templates that must survive a rebuild; setting up multi-environment (dev/prod) config or CI/CD. Prefer this over the MCP write tools whenever the work should outlive an ad-hoc session. Includes a complete working template tree.
+description: Scaffold a deployable, source-controlled MarkLogic project using ml-gradle. Use when the goal implies something repeatable, version-controlled, or deployed to another environment — building an app, API, service, or backend; creating a new project or repo; adding a REST endpoint, transform, or resource extension; adding indexes or TDE templates that must survive a rebuild; setting up multi-environment (dev/prod) config or CI/CD. Also covers the ml-gradle task set (mlDeploy, mlLoadModules vs mlReloadModules, mlWatch, mlUnitTest), keeping credentials out of checked-in properties files, and the REST resource-extension contract — uppercase method exports, the rs: parameter prefix and REST-UNSUPPORTEDPARAM, the required services/metadata file whose absence makes the endpoint 404, and RESTAPI-SRVEXERR status control. Prefer this over the MCP write tools whenever the work should outlive an ad-hoc session. Includes a complete working template tree.
 ---
 
 # MarkLogic Project Setup (ml-gradle)
@@ -62,6 +62,76 @@ gradle mlDeploy
 
 Drop any part you don't need — `src/main/ml-data`, the roles, the REST extension, and
 the environment overlays are all independent.
+
+Credentials do not belong in the checked-in `gradle.properties`. The template ships
+`gradle-local.properties.example` and already gitignores `gradle-local.properties`:
+
+```bash
+cp gradle-local.properties.example gradle-local.properties   # then edit
+```
+
+## Filesystem → server mapping
+
+This mapping is the reason to have a project at all. Everything below is a file on disk
+that a Gradle task pushes to the server.
+
+| What | Where | Deployed by |
+|---|---|---|
+| Indexes, database config | `src/main/ml-config/databases/content-database.json` | `mlDeploy` |
+| Roles, users, amps | `src/main/ml-config/security/{roles,users,amps}/` | `mlDeployRoles` |
+| Library modules | `src/main/ml-modules/root/` | `mlLoadModules` |
+| REST resource extension | `services/<n>.sjs` **+** `services/metadata/<n>.xml` | `mlLoadModules` |
+| REST transform | `transforms/<n>.sjs` | `mlLoadModules` |
+| Search options | `options/<n>.xml` | `mlLoadModules` |
+| TDE templates | `src/main/ml-schemas/tde/<view>.tdej` | `mlLoadSchemas` |
+| Seed data | `src/main/ml-data/` + per-dir `collections.properties` | `mlLoadData` |
+| Unit tests | `src/test/ml-modules/root/test/suites/` | `mlLoadModules` |
+
+The everyday loop is `gradle mlWatch` (hot-reloads modules on save). Use
+`mlReloadModules` when a *deletion* must take effect — `mlLoadModules` is incremental
+against a timestamp file and will not remove anything.
+
+The full task table, credential handling, the multi-environment overlay, unit-test
+wiring, and a GitHub Actions pipeline are in `references/gradle-tasks.md`.
+
+## REST extensions
+
+A **resource extension** is a new endpoint at `/v1/resources/<name>`. A **transform**
+modifies documents flowing through existing REST endpoints. If an extension's only job is
+reshaping a document on read or write, you want a transform instead.
+
+Minimum viable resource extension — two files, and both are required:
+
+```
+src/main/ml-modules/services/items.sjs           # exports.GET = ...
+src/main/ml-modules/services/metadata/items.xml  # title, description, params
+```
+
+Four things account for most of the lost time:
+
+1. **Exports are uppercase.** `exports.GET`, not `exports.get` — the lowercase form
+   deploys cleanly and never runs.
+2. **Custom params need the `rs:` prefix on the wire, and keep it in `params`.** Read
+   `params['rs:category']`. Without the prefix the caller gets
+   `REST-UNSUPPORTEDPARAM: invalid parameters: category for items`. (`ml_extension_call`
+   adds the prefix for you.)
+3. **No metadata file → 404.** The module deploys, the endpoint never registers. This is
+   the most common ml-gradle REST-extension failure.
+4. **Throwing a JS error gives an opaque 500.** Control the status with
+   `fn.error(null, 'RESTAPI-SRVEXERR', Sequence.from([400, 'Bad Request', msg]))`.
+
+`templates/src/main/ml-modules/services/items.sjs` is a worked example: param validation,
+`context.outputTypes`, a library-module `require()`, `RESTAPI-SRVEXERR` error handling, and
+GET plus POST. `templates/src/main/ml-modules/root/lib/items-lib.sjs` is the library module
+it calls.
+
+The complete contract — argument shapes, return-value and `outputTypes` rules, multipart
+responses, transforms and the `trans:` prefix, why `declareUpdate()` is forbidden in an
+extension, both deploy paths and how they shadow each other, and a failure table — is in
+`references/rest-extensions.md`.
+
+For the code inside the handler (input validation, query bindings, transactions,
+permissions), see **marklogic-server-side-code**.
 
 ## What the template already handles
 

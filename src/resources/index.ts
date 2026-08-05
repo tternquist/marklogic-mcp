@@ -209,6 +209,19 @@ logged loudly at startup and surfaced in that resource.
     "time-bounded events") have named templates in ml_query_recipe. Call with
     recipe='list' to enumerate; pass minimal params to execute.
 
+15. BIND VALUES, NEVER CONCATENATE THEM INTO A QUERY
+    Any value that came from a caller — a user question, a REST param, a row field —
+    goes into a query as a BINDING, never spliced into query text. Concatenation is an
+    injection vector and the usual cause of parse errors that point far from the real bug.
+      sem.sparql(q, { s: sem.iri(v) })        not  'SELECT ... <' + v + '>'
+      cts.parse(userQuery, { category: ref }) not  cts.parse('category:' + v)
+      xdmp.eval(src, { v: value })            not  building source text from values
+    Prefer a cts constructor (cts.jsonPropertyValueQuery) over any string grammar when
+    the query shape is known — it takes the value as data, with no grammar to escape.
+    FROM NAMED cannot be bound; validate the graph IRI against a known list instead.
+    ml_eval_javascript preflights for this and warns. Details and the eval-vs-invoke
+    decision table: marklogic-server-side-code skill (references/coding-practices.md).
+
 11. FASTTRACK APPS START WITH SEARCH OPTIONS
     FastTrack UI widgets (SearchBar, FacetFilters, Geospatial Map, Timeline) are
     configured entirely through named search-options sets stored in MarkLogic.
@@ -761,9 +774,11 @@ STANDARD ml-gradle LAYOUT (src/main/):
   ml-schemas/tde/<view>.tdej (or .tde)        ← TDE templates; URIs starting with /tde
                                                 auto-join http://marklogic.com/xdmp/tde
   ml-modules/services/<name>.sjs              ← REST resource extensions → /v1/resources/<name>
-  ml-modules/services/metadata/<name>.xml     ← optional title/description/param docs
+  ml-modules/services/metadata/<name>.xml     ← REQUIRED — without it the module deploys
+                                                but /v1/resources/<name> returns 404
   ml-modules/transforms/<name>.sjs            ← REST transforms → ?transform=<name>
   ml-modules/transforms/metadata/<name>.xml   ← optional metadata for transform
+  src/test/ml-modules/root/test/suites/<n>/   ← marklogic-unit-test suites (gradle mlUnitTest)
   ml-modules/options/<name>.xml               ← search options → /v1/search?options=<name>
   ml-modules/root/lib/foo.sjs                 ← library modules at /lib/foo.sjs
   ml-modules/ext/<dir>/<name>.sjs             ← assets at /ext/<dir>/<name>.sjs
@@ -787,8 +802,23 @@ KEY RULES:
     immediately queryable without reimporting data
   • DHF has two content DBs: data-hub-STAGING (raw) and data-hub-FINAL (mastered)
   • Never manually edit hub-internal-config/ — it is managed by DHF tooling
+  • mlLoadModules is INCREMENTAL against a timestamp file; use mlReloadModules when a
+    deletion must take effect (it clears the whole Modules DB, including anything
+    ml_extension_put wrote out-of-band)
+  • Credentials do not belong in the checked-in gradle.properties — use a gitignored
+    gradle-local.properties, or -PmlPassword / -PmlManagePassword in CI (override BOTH)
   • Use the marklogic-project-setup skill when asked to add indexes, set up a new DB,
     or structure a new ml-gradle / DHF project
+
+REST RESOURCE EXTENSIONS — FOUR RULES THAT ACCOUNT FOR MOST LOST TIME:
+  • Exports are UPPERCASE: exports.GET / exports.POST. Lowercase deploys and never runs.
+  • Custom params need the rs: prefix on the wire AND keep it in the handler's params
+    object — read params['rs:category']. Without it: REST-UNSUPPORTEDPARAM.
+    (ml_extension_call adds the prefix for you.)
+  • declareUpdate() is forbidden in an extension — the REST framework owns the transaction.
+  • A bare throw becomes an opaque 500. Control the status with
+    fn.error(null, 'RESTAPI-SRVEXERR', Sequence.from([400, 'Bad Request', msg])).
+  Full contract, both deploy paths, and a failure table: marklogic-project-setup skill.
 
 
 ── PROGRESS DATA PLATFORM — SEMAPHORE + MARKLOGIC ──────────────────────────
@@ -988,8 +1018,8 @@ plain Markdown in the repository.
                                    caveats, reprocess transform modules
   marklogic-query-authoring        query-tool selection, structured-query cookbook,
                                    SPARQL/triple layouts, empty-result triage
-  marklogic-project-setup          deploy-ready ml-gradle template tree,
-                                   multi-environment overlays, deploy failures
+  marklogic-project-setup          deploy-ready ml-gradle template tree, task set,
+                                   REST extension contract, credentials, CI, deploy failures
   marklogic-data-modeling          multi-model design (documents/triples/vectors),
                                    URI design rules, envelope pattern
   marklogic-rag                    Lexical / Vector / Graph RAG, TDE vector column,
@@ -997,7 +1027,9 @@ plain Markdown in the repository.
   marklogic-performance            E-node/D-node split, filtered search, cache reading,
                                    Optic plans, forest health thresholds
   marklogic-server-side-code       SJS/XQuery modules, REST extensions, CTF transforms,
-                                   Flux reader/transform pairs, TDE template syntax
+                                   Flux reader/transform pairs, TDE template syntax,
+                                   coding practices (bindings, eval vs invoke, amps,
+                                   transactions, permissions, unit tests)
   marklogic-oauth-setup            OAuth2/OIDC external security, JWT claim -> role
                                    mapping, empty-role-list troubleshooting
   marklogic-fasttrack              search options for facets/timeline/map, React scaffold
