@@ -268,6 +268,49 @@ Two guards keep this from rotting:
 
 Both run in CI.
 
+### Links to product documentation
+
+Skills end with a `## Further reading` section pointing at the MarkLogic, Semaphore, and
+Flux documentation. The rules that keep those useful rather than harmful:
+
+- **A skill must be complete without them.** Agents consuming this server over stdio in
+  someone else's project frequently have no web access at all. Links are for depth,
+  exhaustive reference material, and version-specific behaviour — never a step in a
+  procedure. Nothing should read "fetch X, then do Y".
+- **Never in `description`.** That field is the trigger text, it is capped at 1024
+  characters, and it is evaluated on every skill-selection decision. A URL there is
+  wasted budget.
+- **Only URLs someone has actually resolved.** A confidently wrong link is worse than no
+  link — it sends a reader down a dead end and undermines the parts of the skill that
+  are correct. Models invent plausible doc URLs freely, so this is the rule most at risk.
+- **Name the version.** MarkLogic doc URLs are version-segmented
+  (`marklogic-server-use-search-12` vs `-11`). Links carry the version in their label so
+  a stale one is obvious, and a 404 usually means the page moved version rather than
+  disappeared.
+- **Prefer stable section pages to deep anchors**, which rot faster.
+
+Where a doc page states something load-bearing — a version floor, a hard restriction, a
+known defect — put the fact *in* the skill and keep the link as the citation. The link
+alone is not guidance.
+
+Link checking is opt-in:
+
+```bash
+npm run validate:links    # resolves every documentation link; needs egress
+```
+
+It is deliberately not part of `npm run validate:skills` or CI. Vendors reorganise doc
+sites on their own schedule, and a build that goes red whenever Progress moves a page
+trains people to ignore it. Run it periodically, or on a scheduled job that opens an
+issue rather than blocking a merge.
+
+Only Markdown hyperlinks — `[label](https://…)` — outside fenced code blocks are checked.
+Bare URLs are skipped on purpose: most URL-shaped strings in these skills are XML
+namespaces, collection URIs, and SPARQL prefixes (`http://marklogic.com/xdmp/tde`,
+`http://www.w3.org/2004/02/skos/core#`), which are identifiers rather than pages.
+`tests/skills/link-checker.test.ts` covers the checker's own behaviour against a local
+fixture server, so it stays honest without depending on the real hosts.
+
 ---
 
 ## Troubleshooting

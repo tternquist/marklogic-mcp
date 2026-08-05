@@ -129,3 +129,20 @@ Then load data with the **marklogic-bulk-import** skill and query it with
 | TDE deploys but no rows in the view | template used `.json`, not `.tdej` |
 | `ml-data` documents load with no collections | used a global `collections=` key |
 | REST extension 404s after deploy | missing `services/metadata/<name>.xml` |
+
+## Further reading
+
+ml-gradle is a community-maintained plugin, documented in its GitHub wiki rather than
+on the Progress doc site:
+
+- [ml-gradle wiki](https://github.com/marklogic/ml-gradle/wiki) — start here
+- [Project layout](https://github.com/marklogic/ml-gradle/wiki/Project-layout) — the
+  authoritative list of `src/main/ml-config` and `ml-modules` directories, worth checking
+  when a resource file is being ignored
+- [Property reference](https://github.com/marklogic/ml-gradle/wiki/Property-reference)
+  and [Task reference](https://github.com/marklogic/ml-gradle/wiki/Task-reference)
+- [Configuring ml-gradle](https://github.com/marklogic/ml-gradle/wiki/Configuring-ml-gradle)
+
+For the REST instance the project deploys against:
+[Introduction to the MarkLogic REST API (12)](https://docs.progress.com/bundle/marklogic-server-develop-rest-api-12/page/topics/intro.html)
+and [Administering REST Client API Instances (11)](https://docs.progress.com/bundle/marklogic-server-develop-rest-api-11/page/topics/service.html).

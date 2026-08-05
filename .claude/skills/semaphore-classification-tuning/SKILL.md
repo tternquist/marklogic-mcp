@@ -115,3 +115,24 @@ cover — `labeltypes` filtering, custom combine structures, pos-specific phrase
 
 Keep a small fixed set of test documents. Absolute scores shift as the model changes;
 the gap between right and wrong answers is the signal that matters.
+
+## What CLS actually receives
+
+Knowing the pipeline explains why the three levels behave differently. `semaphore_publish`
+compiles each concept into rulebase files — XML documents of scoring rules — bundles
+them into a single `.pak` archive, and sends that to CLS. CLS processes every published
+rulebase into one rule network and evaluates it per document; a category is emitted when
+its rule score exceeds the threshold carried on the request.
+
+So the threshold is applied at *request* time and the rules at *publish* time. That is
+the whole reason level 2 (`semaphore_classify(threshold=…)`) gives instant feedback
+while levels 1 and 3 do nothing until the next `semaphore_publish` — and why exploring
+with `threshold=0` to see raw scores costs nothing.
+
+## Further reading
+
+- [What is a rulebase?](https://docs.progress.com/bundle/semaphore-5-classification-server-rulebase/page/topics/classification-server-rulebase/rulebase.html)
+  — rule structure, category rules, and how scores relate to the request threshold
+- [The Classification & Language Service Client](https://docs.progress.com/bundle/semaphore-5-classification-and-language-service/page/topics/classification-and-language-service/the_command_line_client.html)
+  — useful for reproducing a classification outside MarkLogic when isolating a problem
+- [Semaphore documentation hub](https://docs.progress.com/category/semaphore-documentation)

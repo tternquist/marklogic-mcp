@@ -1,6 +1,6 @@
 ---
 name: marklogic-oauth-setup
-description: Configure OAuth2/OIDC Bearer token authentication on a MarkLogic app server, including external security objects, JWT claim to role or user mapping, app server settings across cluster groups, and the MCP server's oauth auth mode. Use when enabling JWT/OIDC login, when tokens authenticate but get no roles (HTTP 403 with an empty role list), when debugging issuer or JWKS mismatches, or when a port has been locked out by a bad auth change. Requires MarkLogic 11+.
+description: Configure OAuth2/OIDC Bearer token authentication on a MarkLogic app server, including external security objects, JWT claim to role or user mapping, app server settings across cluster groups, and the MCP server's oauth auth mode. Use when enabling JWT/OIDC login, when tokens authenticate but get no roles (HTTP 403 with an empty role list), when debugging issuer or JWKS mismatches, or when a port has been locked out by a bad auth change. Requires MarkLogic 11.2+.
 ---
 
 # MarkLogic OAuth2 / OIDC Setup
@@ -28,9 +28,24 @@ role assignment** with no error.
 Full working XQuery for the external security object, role/user mapping, and
 verification is in `references/oauth-configuration.md`.
 
+## Token types and the real version floor
+
+Local JWT validation — MarkLogic verifying the token signature itself instead of calling
+the provider on every request — arrived in **11.2.0**. Before that, only reference
+tokens were available, validated by a round trip to the provider's introspection
+endpoint; reference-token support was deprecated in that same release. Everything in
+this skill assumes local JWT validation, so treat **11.2+** as the floor even though
+external security itself predates it.
+
+Signature keys come from one of two places: static JWT secrets for symmetric
+algorithms, or a **JWKS URI** for asymmetric ones. Prefer the JWKS URI — it survives
+provider key rotation without a config change. Either way MarkLogic keeps the secrets in
+its internal keystore, so they do not appear in the external security document when you
+read it back; an empty-looking secrets field is not evidence of a missing key.
+
 ## Prerequisites
 
-- MarkLogic **11+** for OAuth2 JWT external security with JWKS validation
+- MarkLogic **11.2+** for local JWT validation with JWKS (see above)
 - The OIDC provider has this MarkLogic server registered as an OAuth2 client
 - MarkLogic can reach the JWKS endpoint over HTTPS — test server-side with
   `xdmp:http-get("<issuer>/jwks/")` via `ml_eval_xquery`
@@ -102,3 +117,16 @@ curl -u admin:password -X PUT \
 
 Set `cache-timeout` to `0` during setup and testing so configuration changes take effect
 immediately; raise it once the mapping is confirmed working.
+
+## Further reading
+
+- [OAuth-Based Authentication and Authorization (12)](https://docs.progress.com/bundle/marklogic-server-secure-12/page/topics/external-security/oauth-based-authentication-and-authorization.html)
+  — the authoritative account of how a validated token becomes a temporary user with roles
+- [OAuth 2.0 JWT and OIDC support (11.2 release notes)](https://docs.progress.com/bundle/marklogic-server-whats-new-11/page/topics/new-features-in-marklogic-11-2/oauth-2-0-jwt-and-oidc-support.html)
+  — what changed at the version floor above
+- [The OAuth Server Fields (11)](https://docs.progress.com/bundle/marklogic-server-secure-11/page/topics/external-security/reference--the-external-security-configuration-page/external-security-configuration-page-field-index/the-oauth-server-fields.html)
+  — field-by-field reference; useful when mapping Admin UI names onto
+  `sec:create-external-security()` arguments
+- [OAuth authentication type (11)](https://docs.progress.com/bundle/marklogic-server-secure-11/page/topics/authenticating-users/types-of-authentication/oauth.html)
+- [OAuth with Microsoft Entra (11)](https://docs.progress.com/bundle/marklogic-server-secure-11/page/topics/external-security/oauth-based-authentication-and-authorization/with-microsoft-entra.html)
+  — a worked provider-specific configuration

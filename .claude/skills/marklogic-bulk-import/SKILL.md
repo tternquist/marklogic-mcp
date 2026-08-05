@@ -133,3 +133,21 @@ in `references/reprocess-transforms.md`. Read it before writing a transform modu
 `Success count: N` means N invocations returned without throwing — it does **not**
 guarantee N documents changed. Always spot-check with `ml_document_get` on 1–2 URIs,
 and confirm counts with `ml_search` or `ml_values_query`.
+
+## Further reading
+
+Flux is documented separately from MarkLogic Server and is **not** on docs.progress.com
+— look for it on GitHub Pages:
+
+- [MarkLogic Flux overview](https://marklogic.github.io/flux/)
+- [Getting started](https://marklogic.github.io/flux/getting-started.html) — command
+  structure, and `flux help <command>` for per-command options
+- [Common options](https://marklogic.github.io/flux/common-options.html) — the
+  connection options every command shares
+- [Common import features](https://marklogic.github.io/flux/import/common-import-features.html)
+  — URI templates, collections, permissions, batch sizing
+- [Importing RDF](https://marklogic.github.io/flux/import/import-files/rdf.html) — the
+  `--graph` option used above
+
+For comparison with existing scripts built on the older tool this server does not wrap,
+see [Introduction to MarkLogic Content Pump (11)](https://docs.progress.com/bundle/marklogic-server-use-mlcp-11/page/topics/introduction-to-marklogic-content-pump.html).

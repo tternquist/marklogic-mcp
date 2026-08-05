@@ -11,6 +11,22 @@
  * Also verifies that every references/ and templates/ file mentioned in a
  * SKILL.md actually exists, so progressive-disclosure links cannot rot.
  *
+ * With --check-links, additionally resolves every external Markdown hyperlink
+ * in the skills over the network. This is opt-in because it needs egress and
+ * because vendors reorganise their doc sites on their own schedule — a red
+ * build every time Progress moves a page would train people to ignore it.
+ * Run it deliberately (locally, or on a scheduled job), not on every commit.
+ *
+ * Only Markdown hyperlinks — [label](https://…) — outside fenced code blocks
+ * are checked. Bare URLs are skipped on purpose: most URL-shaped strings in
+ * these skills are XML namespaces, collection URIs, and SPARQL prefixes
+ * (http://marklogic.com/xdmp/tde, http://www.w3.org/2004/02/skos/core#) which
+ * are identifiers, not pages, and would produce nothing but false failures.
+ *
+ * Note: Node's built-in fetch ignores HTTPS_PROXY unless NODE_USE_ENV_PROXY=1
+ * (Node >= 22.21). Behind a proxy, run:
+ *   NODE_USE_ENV_PROXY=1 npm run validate:skills -- --check-links
+ *
  * Exits non-zero on any violation. Run via `npm run validate:skills`.
  */
 import fs from "fs";
@@ -18,8 +34,96 @@ import path from "path";
 
 const ROOT = ".claude/skills";
 const NAME_RE = /^[a-z0-9]+(-[a-z0-9]+)*$/;
+const CHECK_LINKS = process.argv.includes("--check-links");
+const LINK_TIMEOUT_MS = 20000;
+const LINK_CONCURRENCY = 6;
+
+/** Hosts that appear in illustrative links and are not expected to resolve. */
+const PLACEHOLDER_HOSTS = new Set([
+  "example.com",
+  "example.org",
+  "localhost",
+  "127.0.0.1",
+]);
+
 const errors = [];
 const summary = [];
+const links = [];
+
+/**
+ * Markdown hyperlink targets outside fenced code blocks, http(s) only,
+ * minus known placeholder hosts.
+ */
+function collectMarkdownLinks(text) {
+  const prose = text.replace(/^```[\s\S]*?^```/gm, "");
+  const found = new Set();
+  for (const m of prose.matchAll(/\[[^\]]*\]\((https?:\/\/[^)\s]+)\)/g)) {
+    const url = m[1];
+    let host;
+    try {
+      host = new URL(url).hostname;
+    } catch {
+      continue;
+    }
+    if (PLACEHOLDER_HOSTS.has(host)) continue;
+    found.add(url);
+  }
+  return found;
+}
+
+/** Resolve one URL. Some doc hosts reject HEAD, so fall back to GET. */
+async function resolveLink(url) {
+  for (const method of ["HEAD", "GET"]) {
+    const ctl = new AbortController();
+    const timer = setTimeout(() => ctl.abort(), LINK_TIMEOUT_MS);
+    try {
+      const res = await fetch(url, {
+        method,
+        redirect: "follow",
+        signal: ctl.signal,
+        headers: { "user-agent": "marklogic-mcp-skill-link-check" },
+      });
+      if (res.ok) return { ok: true };
+      // A HEAD-hostile server answers 403/405; retry once with GET before failing.
+      if (method === "HEAD" && (res.status === 403 || res.status === 405)) continue;
+      return { ok: false, reason: `HTTP ${res.status}` };
+    } catch (err) {
+      if (method === "GET") {
+        const reason = err.name === "AbortError" ? `timeout after ${LINK_TIMEOUT_MS}ms` : err.message;
+        return { ok: false, reason: `unreachable (${reason})` };
+      }
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+  return { ok: false, reason: "unreachable" };
+}
+
+/** Check every collected link with a bounded worker pool. */
+async function checkLinks() {
+  const unique = [...new Map(links.map((l) => [l.url, l])).values()];
+  const sourcesFor = (url) =>
+    [...new Set(links.filter((l) => l.url === url).map((l) => l.source))].join(", ");
+
+  console.log(`\nChecking ${unique.length} documentation link(s)...`);
+  let cursor = 0;
+  const failures = [];
+  await Promise.all(
+    Array.from({ length: Math.min(LINK_CONCURRENCY, unique.length) }, async () => {
+      while (cursor < unique.length) {
+        const { url } = unique[cursor++];
+        const result = await resolveLink(url);
+        if (result.ok) {
+          console.log(`  ✓ ${url}`);
+        } else {
+          console.log(`  ✗ ${url} — ${result.reason}`);
+          failures.push(`${url} — ${result.reason} (in ${sourcesFor(url)})`);
+        }
+      }
+    })
+  );
+  return failures;
+}
 
 if (!fs.existsSync(ROOT)) {
   console.error(`No ${ROOT} directory found.`);
@@ -68,6 +172,23 @@ for (const dir of fs.readdirSync(ROOT).sort()) {
     if (!fs.existsSync(p)) errors.push(`${dir}: references missing file ${ref[0]}`);
   }
 
+  // External documentation hyperlinks, from the skill and its references/ files.
+  const refDir = path.join(skillDir, "references");
+  const linkSources = [{ label: `${dir}/SKILL.md`, text: body }];
+  if (fs.existsSync(refDir)) {
+    for (const f of fs.readdirSync(refDir).sort().filter((f) => f.endsWith(".md"))) {
+      linkSources.push({
+        label: `${dir}/references/${f}`,
+        text: fs.readFileSync(path.join(refDir, f), "utf8"),
+      });
+    }
+  }
+  for (const src of linkSources) {
+    for (const url of collectMarkdownLinks(src.text)) {
+      links.push({ source: src.label, url });
+    }
+  }
+
   summary.push({
     skill: dir,
     descChars: description ? description.length : 0,
@@ -75,13 +196,22 @@ for (const dir of fs.readdirSync(ROOT).sort()) {
     support: fs.existsSync(path.join(skillDir, "references"))
       ? fs.readdirSync(path.join(skillDir, "references")).length
       : 0,
+    links: new Set(links.filter((l) => l.source.startsWith(`${dir}/`)).map((l) => l.url)).size,
   });
 }
 
 const pad = (s, n) => String(s).padEnd(n);
-console.log(`${pad("skill", 36)}${pad("desc", 7)}${pad("body", 8)}refs`);
+console.log(`${pad("skill", 36)}${pad("desc", 7)}${pad("body", 8)}${pad("refs", 6)}links`);
 for (const r of summary) {
-  console.log(`${pad(r.skill, 36)}${pad(r.descChars, 7)}${pad(r.bodyChars, 8)}${r.support}`);
+  console.log(
+    `${pad(r.skill, 36)}${pad(r.descChars, 7)}${pad(r.bodyChars, 8)}${pad(r.support, 6)}${r.links}`
+  );
+}
+
+if (CHECK_LINKS) {
+  for (const f of await checkLinks()) errors.push(`link: ${f}`);
+} else {
+  console.log(`\n(${new Set(links.map((l) => l.url)).size} documentation links not checked — pass --check-links to resolve them)`);
 }
 
 if (errors.length) {

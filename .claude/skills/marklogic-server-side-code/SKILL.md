@@ -20,6 +20,18 @@ Universal conventions: `'use strict';` at the top, `xdmp.log()` for server-side 
 `cts.search()` rather than `fn.doc()` for retrieval, `try`/`catch` around fallible work,
 and JSDoc on exported functions.
 
+### ⚠ REST resource extensions cannot use library modules
+
+The REST API imports resource service extensions dynamically, and JavaScript library
+modules are not available in that context — a `require()` of your own `/lib/*.sjs` will
+not resolve. Because the import happens at request time, a successful `ml_extension_put`
+is not evidence the extension works; call the endpoint before believing it. Either
+inline the shared logic into the extension module, or use a Data Service endpoint, which
+has no such restriction.
+
+The same interface backs the Java, Node.js, and REST client APIs, so one extension
+serves all three.
+
 ## Flux modules — always two, never one
 
 A monolithic script that queries everything and iterates in one transaction hits the
@@ -100,6 +112,16 @@ mapped to `string`, `long`, `double`, `dateTime`, `date`, `boolean`, or `anyURI`
 `nullable: true` for optional fields, `object-node()` paths for nested objects, and a
 separate row-level template for arrays.
 
+**Scoping.** `collections` narrows the template to documents in those collections, ORing
+its entries; use `collections-and` when a document must be in *all* of them. Without
+either, the template applies to every document matching `context` — usually far more
+work than intended.
+
+**Permissions.** The TDE collection is protected: installing a template needs the
+`tde-admin` role and listing templates needs `tde-view`. A template installed under an
+admin account can be invisible to the account your queries run as, which reads as "the
+view does not exist" rather than as a permission error.
+
 ### Three syntax rules that cause `TDE-INVALIDTEMPLATEPROPNODE`
 
 **1. Triples use `val`, never `column`.**
@@ -143,3 +165,17 @@ parent fields. Details in **marklogic-bulk-import**.
 
 For anything that must survive a rebuild or reach another environment, put the modules
 in an ml-gradle project instead — see the **marklogic-project-setup** skill.
+
+## Further reading
+
+- [Template Driven Extraction (TDE) (12)](https://docs.progress.com/bundle/marklogic-server-develop-server-side-apps-12/page/topics/TDE.html)
+  — the complete template element reference
+- [TDE messages (12)](https://docs.progress.com/bundle/marklogic-server-message-code-reference-12/page/topics/TDE-en.html)
+  — look up any `TDE-*` error here before guessing
+- [XDMP messages (10)](https://docs.progress.com/bundle/marklogic-server-message-code-reference-10/page/topics/XDMP-en.html)
+  — same, for `XDMP-*`
+- [Extending the REST API (11)](https://docs.progress.com/bundle/marklogic-server-develop-rest-api-11/page/topics/extensions.html)
+  — resource service extension interface and authoring rules
+- [Working With Content Transformations (12)](https://docs.progress.com/bundle/marklogic-server-develop-rest-api-12/page/topics/transforms.html)
+  — the `(content, context)` transform contract
+- [Optic API (12)](https://docs.progress.com/bundle/marklogic-server-develop-server-side-apps-12/page/topics/OpticAPI.html)

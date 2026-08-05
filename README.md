@@ -838,6 +838,7 @@ npm run build        # TypeScript → dist/
 npm run typecheck    # Type check without emitting
 npm test             # Vitest (skips gracefully if ML_HOST not set)
 npm run validate:skills   # Agent Skills spec compliance for .claude/skills/
+npm run validate:links    # resolve every product-doc link in the skills (needs egress)
 npm run skills:install    # Copy skills into another project (-- --user | --project <dir>)
 npm run inspector    # Launch MCP Inspector UI
 ```
