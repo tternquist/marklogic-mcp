@@ -123,3 +123,14 @@ Also useful inside XQuery/SJS:
 
 If those do not close the gap, the next step is a schema change — usually adding the
 range index the query has been scanning without.
+
+## Further reading
+
+- [Tuning Query Performance in MarkLogic Server (11)](https://docs.progress.com/bundle/marklogic-server-tune-query-performance-11/page/topics/perftune.html)
+  — the guide this skill condenses
+- [Tuning Queries with query-meters and query-trace (12)](https://docs.progress.com/bundle/marklogic-server-tune-query-performance-12/page/topics/query_meters.html)
+  — how to read what `ml_profile_query` returns, including cache hits vs misses
+- [Indexing in MarkLogic (12)](https://docs.progress.com/bundle/marklogic-server-understand-concepts-12/page/topics/indexing.html)
+- [Understanding Range Indexes (11)](https://docs.progress.com/bundle/marklogic-server-administrate-11/page/topics/range-indexes-and-lexicons/understanding-range-indexes.html)
+  — why an inequality without one degrades to a scan
+- [Defining Path Range Indexes (11)](https://docs.progress.com/bundle/marklogic-server-administrate-11/page/topics/range-indexes-and-lexicons/defining-path-range-indexes.html)

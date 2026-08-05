@@ -155,3 +155,18 @@ and query patterns over envelopes are in `references/envelope-pattern.md`.
 - `ml_collections_list` — what exists
 
 Design against observed structure, not assumed structure.
+
+## Further reading
+
+- [Template Driven Extraction (TDE) (12)](https://docs.progress.com/bundle/marklogic-server-develop-server-side-apps-12/page/topics/TDE.html)
+  — full template element reference
+- [SQL on MarkLogic Server (12)](https://docs.progress.com/bundle/marklogic-server-model-relational-data-12/page/topics/intro.html)
+  — how TDE rows become relational views
+- [Unmanaged Triples (12)](https://docs.progress.com/bundle/marklogic-server-develop-with-semantic-graphs-12/page/topics/embedded.html)
+  — triples embedded in documents, which is what the envelope `triples` zone holds
+- [Using a Template to Identify Triples in a Document (12)](https://docs.progress.com/bundle/marklogic-server-develop-with-semantic-graphs-12/page/topics/tde.html)
+  — the managed-triples-via-TDE path
+- [Loading Semantic Triples (12)](https://docs.progress.com/bundle/marklogic-server-develop-with-semantic-graphs-12/page/topics/loading.html)
+- [Introduction to Entity Services (11)](https://docs.progress.com/bundle/marklogic-server-use-entity-services-11/page/topics/intro.html)
+  — MarkLogic's own envelope-based modelling framework, worth comparing against the
+  hand-rolled envelope described here

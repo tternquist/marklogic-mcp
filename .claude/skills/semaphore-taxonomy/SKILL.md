@@ -180,3 +180,13 @@ KMM uses a separate credential path from the Classification Server. If
 `SEMAPHORE_USERNAME` / `SEMAPHORE_PASSWORD` and the KMM port
 (`SEMAPHORE_KMM_PORT`) rather than the CLS settings. KMM uses Java EE form auth, not
 Basic auth.
+
+## Further reading
+
+- [KMM Quick Start](https://docs.progress.com/bundle/semaphore-5-knowledge-model-management-quick-start/page/topics/kmm-quick-start/welcome.html)
+  — model creation and the Studio concepts the `semaphore_kmm_*` tools drive
+- [Using the SPARQL editor on your model](https://docs.progress.com/bundle/semaphore-5-knowledge-model-management-how-to/page/topics/kmm-how-to/how-to-query-or-run-a-report/how-to-use-sparql-interface.html)
+  — the same endpoint `semaphore_kmm_sparql` uses, handy for checking a query in the UI first
+- [Mapping concepts with the Reconciliation Server](https://docs.progress.com/bundle/semaphore-5-knowledge-model-management-how-to/page/topics/kmm-how-to/how_to_map_concepts_in_semaphore.html)
+  — for aligning a local taxonomy with a published vocabulary
+- [Semaphore documentation hub](https://docs.progress.com/category/semaphore-documentation)

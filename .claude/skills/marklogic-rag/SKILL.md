@@ -94,6 +94,21 @@ Via MCP, the simple path is
   asymmetry: `op.vec.vectorScore` used *inside* an Optic plan sorts descending.
 - **`ann_distance` is cosine distance** — lower is more similar (0 identical, 2 opposite).
 
+### ⚠ Require 12.0.1 or later
+
+Two vector defects in 12.0.0 are easy to misdiagnose as a bug in your own retrieval
+code. Check `ml_cluster_status` before debugging further:
+
+- **`annTopK` served stale results.** Changing the query vector did not change the
+  rows — the previous vector's results were returned until the query plan cache timed
+  out. A pipeline that returns plausible-but-unrelated passages, and returns the *same*
+  passages for different questions, is showing this and not a bad embedding.
+- **Vector parameters bound to `POST /v1/rows` were not typed correctly**, so passing a
+  query vector as a bound parameter over REST failed. Relevant to any Optic vector
+  query issued through the REST API rather than `ml_eval_javascript`.
+
+Both are fixed in 12.0.1.
+
 ## 4. Reranking
 
 - Cosine alone is enough for whole-document embeddings with a good model.
@@ -130,3 +145,16 @@ blocked it because it lacked the Marine Ecosystems concept.
 
 Lexical RAG's characteristic failure is exactly this: missing cross-concept connections
 when vocabulary does not overlap.
+
+## Further reading
+
+- [What's new in MarkLogic 12](https://docs.progress.com/bundle/marklogic-server-whats-new-12/page/topics/what-s-new-in-marklogic-12.html)
+  — vectors as a native indexed model
+- [Release notes (12)](https://docs.progress.com/bundle/marklogic-server-whats-new-12/page/topics/release-notes.html)
+  — check this first when vector behaviour looks wrong; the 12.0.1 fixes above are here
+- [Building Vector Queries (Optic, 12)](https://docs.progress.com/bundle/marklogic-server-get-started-optic-12/page/topics/building-vector-queries.html)
+- [Optic API for Multi-Model Data Access (12)](https://docs.progress.com/bundle/marklogic-server-develop-server-side-apps-12/page/topics/OpticAPI.html)
+- [vec:vector-score](https://docs.marklogic.com/vec:vector-score) — the hybrid scoring
+  function's exact signature and weighting parameter
+- [Template Driven Extraction (12)](https://docs.progress.com/bundle/marklogic-server-develop-server-side-apps-12/page/topics/TDE.html)
+  — the template reference behind the vector column spec above

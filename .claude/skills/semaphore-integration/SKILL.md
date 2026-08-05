@@ -136,3 +136,14 @@ context in **marklogic-bulk-import**.
 - **semaphore-taxonomy** — authoring, loading, and publishing the model
 - **semaphore-classification-tuning** — when results are wrong rather than absent
 - **marklogic-bulk-import** — Flux inline classification output shape and TDE
+
+## Further reading
+
+- [Semaphore architectural overview](https://docs.progress.com/bundle/semaphore-5-architecture-planning/page/topics/architecture-planning/architectural_overview.html)
+  — how CLS, KMM, and the Publisher relate; read before deciding where classification runs
+- [The Classification & Language Service Client](https://docs.progress.com/bundle/semaphore-5-classification-and-language-service/page/topics/classification-and-language-service/the_command_line_client.html)
+  — reproduce a classification request outside MarkLogic to isolate whether a failure is
+  network, payload, or model
+- [CLS using Docker](https://docs.progress.com/bundle/semaphore-5-install-linux/page/topics/install-linux/classification_and_language_service_using_docker.html)
+  — relevant to the container and Kubernetes networking constraints above
+- [Semaphore documentation hub](https://docs.progress.com/category/semaphore-documentation)

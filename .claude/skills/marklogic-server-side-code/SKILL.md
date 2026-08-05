@@ -20,6 +20,23 @@ Universal conventions: `'use strict';` at the top, `xdmp.log()` for server-side 
 `cts.search()` rather than `fn.doc()` for retrieval, `try`/`catch` around fallible work,
 and JSDoc on exported functions.
 
+### If `require()` fails inside a REST resource extension
+
+The REST API Developer's Guide states that JavaScript library modules are not available
+to resource service extensions, because the REST API imports them dynamically, and
+recommends a Data Service endpoint when an endpoint needs shared library code. The worked
+extension in the **marklogic-project-setup** skill's REST-extensions reference does use
+`require()`, so the restriction is either version-specific or narrower than the guide's
+wording — **verify on your own version before designing around either claim.**
+
+What holds regardless: the import happens at request time, so a successful
+`ml_extension_put` is not evidence the extension works. Call the endpoint before
+believing it. If `require()` does fail there, inline the logic or move to a Data Service
+rather than assuming the module path is wrong.
+
+The same interface backs the Java, Node.js, and REST client APIs, so one extension
+serves all three.
+
 ## Application coding practices
 
 `references/coding-practices.md` covers the practices that decide whether a module is
@@ -121,6 +138,16 @@ mapped to `string`, `long`, `double`, `dateTime`, `date`, `boolean`, or `anyURI`
 `nullable: true` for optional fields, `object-node()` paths for nested objects, and a
 separate row-level template for arrays.
 
+**Scoping.** `collections` narrows the template to documents in those collections, ORing
+its entries; use `collections-and` when a document must be in *all* of them. Without
+either, the template applies to every document matching `context` — usually far more
+work than intended.
+
+**Permissions.** The TDE collection is protected: installing a template needs the
+`tde-admin` role and listing templates needs `tde-view`. A template installed under an
+admin account can be invisible to the account your queries run as, which reads as "the
+view does not exist" rather than as a permission error.
+
 ### Three syntax rules that cause `TDE-INVALIDTEMPLATEPROPNODE`
 
 **1. Triples use `val`, never `column`.**
@@ -171,3 +198,17 @@ The full contract — method exports, `context.outputTypes`, the `rs:` / `trans:
 rules, `RESTAPI-SRVEXERR` status control, why `declareUpdate()` is forbidden in an
 extension, the two deploy paths and how they shadow each other — is in the
 **marklogic-project-setup** skill's REST-extensions reference.
+
+## Further reading
+
+- [Template Driven Extraction (TDE) (12)](https://docs.progress.com/bundle/marklogic-server-develop-server-side-apps-12/page/topics/TDE.html)
+  — the complete template element reference
+- [TDE messages (12)](https://docs.progress.com/bundle/marklogic-server-message-code-reference-12/page/topics/TDE-en.html)
+  — look up any `TDE-*` error here before guessing
+- [XDMP messages (10)](https://docs.progress.com/bundle/marklogic-server-message-code-reference-10/page/topics/XDMP-en.html)
+  — same, for `XDMP-*`
+- [Extending the REST API (11)](https://docs.progress.com/bundle/marklogic-server-develop-rest-api-11/page/topics/extensions.html)
+  — resource service extension interface and authoring rules
+- [Working With Content Transformations (12)](https://docs.progress.com/bundle/marklogic-server-develop-rest-api-12/page/topics/transforms.html)
+  — the `(content, context)` transform contract
+- [Optic API (12)](https://docs.progress.com/bundle/marklogic-server-develop-server-side-apps-12/page/topics/OpticAPI.html)

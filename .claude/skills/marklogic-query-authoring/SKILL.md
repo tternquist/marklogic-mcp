@@ -129,3 +129,18 @@ Work down this list before rewriting the query:
 
 A query that scans instead of using an index almost always means a missing range index
 or a field name that does not match the indexed one.
+
+## Further reading
+
+- [Composing cts:query Expressions (12)](https://docs.progress.com/bundle/marklogic-server-use-search-12/page/topics/cts_query.html)
+  — the full cts constructor catalogue
+- [Search API: Understanding and Using (12)](https://docs.progress.com/bundle/marklogic-server-use-search-12/page/topics/search-api.html)
+- [Search Customization Using Query Options (12)](https://docs.progress.com/bundle/marklogic-server-use-search-12/page/topics/query-options.html)
+  and the exhaustive [Query Options Reference (12)](https://docs.progress.com/bundle/marklogic-server-use-search-12/page/topics/appendixa.html)
+- [Browsing With Lexicons (12)](https://docs.progress.com/bundle/marklogic-server-use-search-12/page/topics/lexicon.html)
+  — the lexicon and range-index machinery behind `ml_values_query`
+- [Optic API for Multi-Model Data Access (12)](https://docs.progress.com/bundle/marklogic-server-develop-server-side-apps-12/page/topics/OpticAPI.html)
+- [Introduction to Semantic Graphs (12)](https://docs.progress.com/bundle/marklogic-server-develop-with-semantic-graphs-12/page/topics/intro.html)
+  and [SPARQL Update (12)](https://docs.progress.com/bundle/marklogic-server-develop-with-semantic-graphs-12/page/topics/sparql-update.html)
+- [cts:parse](https://docs.marklogic.com/cts:parse) — the string-grammar reference, including
+  the bindings map

@@ -174,3 +174,24 @@ capability exists at all.
 - An installed TDE template can extract zero rows. Confirm with `ml_tde_validate`.
 - Index and TDE changes need a full reindex. Check `ml_reindex_status` before
   concluding a query is wrong.
+
+## Product documentation
+
+Everything needed to work through a task is in these skills; the links below are for
+depth, for exhaustive reference material, and for checking version-specific behaviour.
+
+Narrative guides live at [docs.progress.com](https://docs.progress.com/category/marklogic-content-hub).
+The per-function API reference — signatures for every `cts.*`, `op.*`, `vec.*`, `sem.*`
+function — is still at [docs.marklogic.com](https://docs.marklogic.com/js/cts/search),
+and is the right place to look up an exact signature rather than guessing one.
+
+Two pages worth reading before the rest:
+
+- [Overview of MarkLogic Server](https://docs.progress.com/bundle/marklogic-server-understand-concepts-12/page/topics/overview.html)
+  — the E-node/D-node/forest/stand vocabulary every other skill assumes
+- [Indexing in MarkLogic](https://docs.progress.com/bundle/marklogic-server-understand-concepts-12/page/topics/indexing.html)
+  — the universal index, and why some queries require a range index
+
+**Doc URLs are version-segmented** (`…-12`, `…-11`, `…-10`). A 404 usually means the
+page exists under a different version segment, not that it is gone — swap the number
+before concluding anything. Each skill's links name the version they point at.

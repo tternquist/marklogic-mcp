@@ -84,6 +84,24 @@ Current skills (13): `marklogic` (router), `marklogic-bulk-import`,
 **What belongs in a skill:** recipes, worked examples, failure modes, workarounds,
 decision trees, templates, anything longer than a few lines.
 
+**Linking to product documentation.** Skills end with a `## Further reading` section
+pointing at docs.progress.com (narrative guides), docs.marklogic.com (per-function API
+reference), and marklogic.github.io/flux (Flux, which is not on the Progress site).
+Treat those links as supplements, never dependencies:
+
+- A skill must be complete with the network unplugged — agents using this server from
+  another project often have no web access. Links are for depth and for version-specific
+  behaviour; never write "fetch X, then do Y" as a step.
+- Never put a URL in `description` — that is trigger text, capped at 1024 chars, and
+  evaluated on every skill-selection decision.
+- Only add a URL someone has resolved. An invented doc URL is worse than no link.
+- Name the version in the link label; MarkLogic doc URLs are version-segmented.
+- When a doc page states something load-bearing (a version floor, a restriction, a known
+  defect), put the fact in the skill and keep the link as the citation.
+
+`npm run validate:links` resolves them all. It is opt-in, not part of CI — see
+`docs/SKILLS.md` for why.
+
 **Never register a tool that performs no I/O.** If a handler only transforms its own
 arguments into text, it is a skill, not a tool — it costs schema tokens on every
 request and duplicates knowledge the model already has. Six such tools were removed in
@@ -216,7 +234,8 @@ If a prompt really is right:
   semaphore-integration/            — CLS/KMM setup, four integration patterns
   semaphore-classification-tuning/  — classification quality playbooks
 scripts/
-  validate-skills.mjs   — Agent Skills spec compliance check (npm run validate:skills)
+  validate-skills.mjs   — Agent Skills spec compliance check (npm run validate:skills);
+                          --check-links also resolves product-doc links (npm run validate:links)
   install-skills.mjs    — copy skills into another project / ~/.claude (npm run skills:install)
 docs/
   SKILLS.md          — human-facing skills guide: install, catalog, migration, troubleshooting
@@ -291,6 +310,7 @@ npm run build             # TypeScript → dist/; always run after editing .ts f
 npm test                  # Vitest; tests skip gracefully if ML_HOST is not set
 npm run lint              # ESLint over src/
 npm run validate:skills   # Agent Skills spec compliance for .claude/skills/
+npm run validate:links    # resolve every product-doc link in the skills (needs egress)
 npm run skills:install    # Copy skills elsewhere (-- --user | --project <dir> | --list)
 npm run dev               # Watch mode for development
 ```

@@ -115,3 +115,26 @@ constraint renders an empty widget rather than an error.
 For anything that must survive a rebuild, keep the options set in an ml-gradle project
 under `src/main/ml-modules/options/` rather than storing it ad hoc — see the
 **marklogic-project-setup** skill.
+
+## Further reading
+
+The options set matters more than the widgets — most FastTrack problems are constraint
+definitions, not React:
+
+- [Query Options Reference (12)](https://docs.progress.com/bundle/marklogic-server-use-search-12/page/topics/appendixa.html)
+  — every constraint type and bucket attribute, including the `ge`/`lt` pair whose
+  omission causes `XDMP-VALIDATEMISSINGATTR`
+- [Search Customization Using Query Options (12)](https://docs.progress.com/bundle/marklogic-server-use-search-12/page/topics/query-options.html)
+- [Browsing With Lexicons (12)](https://docs.progress.com/bundle/marklogic-server-use-search-12/page/topics/lexicon.html)
+  — why every facet needs a range index or lexicon behind it
+
+FastTrack itself:
+
+- [FastTrack widgets](https://docs.progress.com/bundle/marklogic-fasttrack-develop-with-fasttrack-1/page/topics/fasttrack-widgets.html)
+  — `SearchBox`, `StringFacet`, `BucketRangeFacet`, `DateRangeFacet`, and friends
+- [Add the FastTrack UI widgets](https://docs.progress.com/bundle/marklogic-fasttrack-develop-with-fasttrack-1/page/topics/create-a-search-application/add-the-fasttrack-ui-widgets.html)
+- [UI Tier: React](https://docs.progress.com/bundle/marklogic-fasttrack-develop-with-fasttrack-1/page/topics/set-up-a-three-tiered-application/ui-tier--react.html)
+  — the three-tier layout (MarkLogic / Node Express / React) the scaffolding assumes
+- [AISummary widget (3.0)](https://docs.progress.com/bundle/marklogic-fasttrack-develop-with-fasttrack-3.0/page/topics/fasttrack-widgets/aisummary.html)
+- [Crime Map AI example app](https://docs.progress.com/bundle/marklogic-fasttrack-develop-with-fasttrack/page/topics/fasttrack-example-applications/crime-map-ai.html)
+  — a worked faceted-search-plus-RAG application

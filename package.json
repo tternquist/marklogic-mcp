@@ -18,6 +18,7 @@
     "typecheck": "tsc --noEmit",
     "lint": "eslint src",
     "validate:skills": "node scripts/validate-skills.mjs",
+    "validate:links": "NODE_USE_ENV_PROXY=1 node scripts/validate-skills.mjs --check-links",
     "skills:install": "node scripts/install-skills.mjs",
     "inspector": "npx @modelcontextprotocol/inspector tsx src/index.ts",
     "flux": "node scripts/flux.mjs"
