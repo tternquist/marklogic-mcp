@@ -202,8 +202,14 @@ If a prompt really is right:
   marklogic-data-modeling/          — multi-model design, URI rules, envelope pattern
   marklogic-rag/                    — lexical/vector/graph RAG, TDE vector column
   marklogic-performance/            — E/D nodes, filtered search, caches, forest health
-  marklogic-server-side-code/       — SJS/XQuery modules, REST extensions, TDE syntax
-  marklogic-project-setup/          — ml-gradle template tree (templates/)
+  marklogic-server-side-code/       — SJS/XQuery modules, REST extensions, TDE syntax;
+                                      references/coding-practices.md (query bindings vs
+                                      concatenation, eval vs invoke vs spawn, amps,
+                                      transactions, permissions, unit tests)
+  marklogic-project-setup/          — ml-gradle template tree (templates/);
+                                      references/rest-extensions.md (resource extension +
+                                      transform contract), references/gradle-tasks.md
+                                      (task set, credentials, multi-env, CI)
   marklogic-oauth-setup/            — OIDC external security, JWT -> role mapping
   marklogic-fasttrack/              — search options for facets/timeline/map
   semaphore-taxonomy/               — SKOS authoring + Turtle template

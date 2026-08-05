@@ -28,6 +28,8 @@ wrong one wastes round-trips and produces worse results.
 | Bulk server-side transform | Flux reprocess | `flux_reprocess` | — |
 | Export data out | Flux export | `flux_export`, `ml_export_tabular` | — |
 | Slow query | Index + plan analysis | `ml_explain_optic`, `ml_search_query_plan`, `ml_profile_query` | `ml_indexes_list` |
+| Custom HTTP endpoint | REST resource extension | `ml_extension_put`, `ml_extension_call` | `ml_extension_list` |
+| Reshape docs on read/write | REST transform (CTF) | `ml_extension_put`, ml-gradle `transforms/` | `ml_extension_list` |
 | Cluster / database admin | Manage API | `ml_databases_list`, `ml_servers_list`, `ml_cluster_status` | — |
 | Users / roles / permissions | Security API | `ml_users_list`, `ml_roles_list`, `ml_document_permissions` | — |
 
@@ -37,7 +39,8 @@ wrong one wastes round-trips and produces worse results.
 |---|---|
 | **marklogic-bulk-import** | Flux import recipes, Socrata/GDELT, JSONL wrappers, reprocess transforms |
 | **marklogic-query-authoring** | search vs structured vs Optic vs SPARQL, index requirements, empty-result triage |
-| **marklogic-project-setup** | ml-gradle project template, multi-environment, deploy failures |
+| **marklogic-project-setup** | ml-gradle template and task set, REST extension contract, multi-environment, credentials, CI, deploy failures |
+| **marklogic-server-side-code** | module signatures per type, query bindings vs concatenation, eval vs invoke vs spawn, amps, transactions, unit tests |
 | **semaphore-taxonomy** | SKOS authoring, SKOS-XL reification, publish workflow |
 | **semaphore-classification-tuning** | classification quality: labels → threshold → .kid template |
 
@@ -76,6 +79,16 @@ If the goal implies anything repeatable, source-controlled, or deployed elsewher
 "build an app", "add a REST endpoint", "deploy to production", "version-controlled" —
 use the **marklogic-project-setup** skill instead of the MCP write tools. Write tools
 change a running database and leave nothing on disk.
+
+## Before generating any module code
+
+Values that came from a caller go into a query as **bindings**, never concatenated into
+query text — `sem.sparql(q, { s: sem.iri(v) })`, not `'... <' + v + '>'`. This is both an
+injection vector and the usual cause of parse errors that point far from the real bug.
+`ml_eval_javascript` preflights for it and warns. The practices that decide whether a
+module is production-grade — bindings, `xdmp.eval` vs `invokeFunction` vs `spawn`, amps,
+the 600 s transaction limit, explicit permissions, `RESTAPI-SRVEXERR` — are in
+**marklogic-server-side-code**.
 
 ## Safety flags change which tools exist
 

@@ -26,6 +26,44 @@ describe("lintSjs", () => {
     const code = "var q = op.fromView('s','v'); Array.from(q.result());";
     expect(lintSjs(code)).toEqual([]);
   });
+
+  describe("interpolated query text", () => {
+    it("warns when sem.sparql concatenates a value into the query", () => {
+      const findings = lintSjs("sem.sparql('SELECT ?p WHERE { <' + subj + '> ?p ?o }')");
+      expect(findings.some((f) => f.message.includes("sem.sparql"))).toBe(true);
+      expect(findings.some((f) => f.hint.includes("bindings map"))).toBe(true);
+    });
+
+    it("warns when a template literal interpolates into the query", () => {
+      const findings = lintSjs("sem.sparql(`SELECT ?p WHERE { <${subj}> ?p ?o }`)");
+      expect(findings.some((f) => f.message.includes("sem.sparql"))).toBe(true);
+    });
+
+    it("warns when cts.parse builds its grammar from a value", () => {
+      const findings = lintSjs("cts.parse('category:' + userValue)");
+      expect(findings.some((f) => f.message.includes("cts.parse"))).toBe(true);
+    });
+
+    it("warns when xdmp.eval builds source from a value", () => {
+      const findings = lintSjs('xdmp.eval(\'cts.search(cts.wordQuery("\' + term + \'"))\')');
+      expect(findings.some((f) => f.message.includes("xdmp.eval"))).toBe(true);
+    });
+
+    it("accepts sem.sparql with a bindings map", () => {
+      const code = "sem.sparql('SELECT ?p WHERE { ?s ?p ?o }', { s: sem.iri(subj) })";
+      expect(lintSjs(code)).toEqual([]);
+    });
+
+    it("accepts cts.parse with a constraint bindings map", () => {
+      const code = "cts.parse(userQuery, { category: cts.jsonPropertyReference('category') })";
+      expect(lintSjs(code)).toEqual([]);
+    });
+
+    it("does not flag literal-to-literal concatenation used for line wrapping", () => {
+      const code = "sem.sparql('SELECT ?p ' + 'WHERE { ?s ?p ?o }')";
+      expect(lintSjs(code)).toEqual([]);
+    });
+  });
 });
 
 describe("formatLintFindings", () => {
