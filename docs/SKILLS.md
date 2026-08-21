@@ -261,7 +261,10 @@ npm test                  # includes the catalog sync guard below
 Two guards keep this from rotting:
 
 - `scripts/validate-skills.mjs` enforces the spec constraints and fails if a SKILL.md
-  links to a `references/` or `templates/` file that doesn't exist.
+  links to a `references/` or `templates/` file that doesn't exist, or names a
+  companion skill in bold (`**marklogic-…**` / `**semaphore-…**`) that has no
+  directory in this corpus — a skill whose prescribed workflow depends on a
+  companion that isn't shipped strands the agent following it.
 - `tests/skills/skills-catalog.test.ts` fails the build if a skill directory is added or
   removed without updating this catalog, the README table, and the `AGENT SKILLS`
   section of `marklogic://instructions`.

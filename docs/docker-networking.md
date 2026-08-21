@@ -237,3 +237,62 @@ ML_HOST=marklogic ML_PASSWORD=admin \
 # 5. Verify
 curl http://localhost:3000/health
 ```
+
+---
+
+## Running MarkLogic Itself in Docker — Known Gotchas
+
+Hard-won facts about the `progressofficial/marklogic-db` image that otherwise get
+re-diagnosed by every project.
+
+### First boot on a fresh volume can race and exit 1
+
+With `MARKLOGIC_INIT=true`, the init script calls `/admin/v1/instance-admin` while the
+server is still coming up. On a fresh data volume it can get a `503` and give up, and
+the container exits with code 1. **This does not mean the image or your config is
+broken** — run `docker compose up` again; the second boot almost always succeeds
+immediately. Only start debugging if a *second* clean boot also fails.
+
+### Admin/Manage endpoints require authentication — write healthchecks accordingly
+
+`/admin/v1/timestamp` and the Manage API (`:8002/manage/v2`) require Digest/Basic auth
+in current images. An unauthenticated healthcheck gets a `401`, which `curl -f` treats
+as failure — so a container that is perfectly healthy reports `unhealthy`, or worse,
+flaps depending on timing. The canonical known-good healthcheck:
+
+```yaml
+healthcheck:
+  test: ["CMD", "curl", "-sf", "--anyauth", "-u", "admin:admin", "http://localhost:8002/manage/v2"]
+  interval: 15s
+  timeout: 10s
+  retries: 10
+  start_period: 60s
+```
+
+`--anyauth` lets curl answer whichever challenge (Digest or Basic) the server issues,
+so the check keeps working across image versions with different auth defaults.
+
+### The Docker daemon may be shared — never adopt containers you didn't create
+
+On shared hosts (CI runners, cloud dev environments, team servers) `docker ps -a` can
+show containers, images, and networks from **other sessions or other people's
+projects**. A container name that sounds related to your task is not evidence it
+belongs to your task — never reuse, inspect-and-adapt, or build on top of
+infrastructure you did not create in the current session. Give every project a unique
+identity so collisions can't happen:
+
+```bash
+# compose project name prefixes every container, network, and volume name
+COMPOSE_PROJECT_NAME=myapp-$(whoami) docker compose up -d
+# or pin it in the compose file:  name: myapp-demo
+```
+
+### Node app images next to MarkLogic: lock the install
+
+When writing a Dockerfile for a UI or middle-tier next to MarkLogic, always
+`COPY package.json package-lock.json ./` (plus any `.npmrc` the build needs) and use
+`npm ci`, never `npm install`. A plain `npm install` with no lockfile re-resolves
+versions inside the container — behind a private registry mirror or a
+release-age-gated proxy this fails with `ECONNREFUSED` or `403` on packages that
+resolved fine on the host, and neither error message points at the real cause. This
+repo's own `Dockerfile` follows the pattern.
