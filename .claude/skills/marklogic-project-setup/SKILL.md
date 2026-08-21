@@ -1,6 +1,6 @@
 ---
 name: marklogic-project-setup
-description: Scaffold a deployable, source-controlled MarkLogic project using ml-gradle. Use when the goal implies something repeatable, version-controlled, or deployed to another environment — building an app, API, service, or backend; creating a new project or repo; adding a REST endpoint, transform, or resource extension; adding indexes or TDE templates that must survive a rebuild; setting up multi-environment (dev/prod) config or CI/CD. Also covers the ml-gradle task set (mlDeploy, mlLoadModules vs mlReloadModules, mlWatch, mlUnitTest), keeping credentials out of checked-in properties files, and the REST resource-extension contract — uppercase method exports, the rs: parameter prefix and REST-UNSUPPORTEDPARAM, the required services/metadata file whose absence makes the endpoint 404, and RESTAPI-SRVEXERR status control. Prefer this over the MCP write tools whenever the work should outlive an ad-hoc session. Includes a complete working template tree.
+description: Scaffold a deployable, source-controlled MarkLogic project using ml-gradle. Use when building an app, API, service, or backend; creating a new project or repo; adding a REST endpoint, transform, index, or TDE template that must survive a rebuild; or setting up multi-environment (dev/prod) config or CI/CD. Prefer this over ad-hoc MCP write tools whenever the work should outlive a single session. Includes a complete working template tree.
 ---
 
 # MarkLogic Project Setup (ml-gradle)
