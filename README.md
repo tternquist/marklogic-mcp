@@ -495,6 +495,13 @@ or Docker. Copy `.env.example` to get started there.
 | `LOG_LEVEL` | `info` | `debug`, `info`, `warn`, `error` |
 | `LOG_FORMAT` | `json` | `json` or `pretty` |
 
+**One process, one instance.** The server binds to `ML_HOST`/`ML_PORT` and its
+credentials at startup — there is no runtime "reconnect" tool. To point at a different
+MarkLogic (a new docker-compose stack, a second environment), re-register or restart
+the server with new environment variables; to work against two instances at once,
+register it twice under different names with different `env` blocks. To confirm which
+instance a session is talking to, call `ml_cluster_status` or `ml_databases_list`.
+
 ### Flux — required for the `flux_*` bulk tools
 
 | Variable | Default | Description |

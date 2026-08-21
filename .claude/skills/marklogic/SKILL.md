@@ -101,6 +101,26 @@ the 600 s transaction limit, explicit permissions, `RESTAPI-SRVEXERR` — are in
 - **`ML_AUTH_TYPE=oauth`** — Flux tools return an explicit error; the Flux runner needs
   username/password in its connection string.
 
+## One server process, one MarkLogic instance
+
+This server binds to a single MarkLogic instance — `ML_HOST`, `ML_PORT`,
+`ML_MANAGEMENT_PORT`, credentials — when it starts. There is no connect/reconnect
+tool; nothing at call time can repoint it.
+
+- **To target a different instance** (a freshly scaffolded docker-compose stack, a
+  second environment): re-register or restart the server with new environment
+  variables. Over stdio, edit the client's MCP entry (`claude mcp add … -e ML_HOST=…`)
+  and reconnect; in Docker, restart the container with new env. To work against two
+  instances at once, register the server twice under different names with different
+  env blocks.
+- **To confirm which instance the tools are talking to**: `ml_cluster_status` and
+  `ml_databases_list`. If databases or collections you just created are missing, you
+  are pointed at a *different* MarkLogic, not looking at empty data.
+- A mismatch is a reason to repoint, **not** to abandon the tools for hand-rolled
+  `curl` against `/v1/search` — raw REST forfeits the error mapping and the guidance
+  in these skills, and hand-built query bodies fail silently (see
+  marklogic-query-authoring).
+
 ## Complete tool index
 
 Every registered tool, by group. The table at the top of this skill maps problems to the

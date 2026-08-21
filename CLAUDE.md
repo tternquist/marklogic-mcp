@@ -54,8 +54,11 @@ description: ...                # <=1024 chars, states WHAT it does AND WHEN to 
 ```
 
 Run `npm run validate:skills` after any change — it enforces both limits, the
-name/directory match, and that every `references/` or `templates/` path mentioned in a
-SKILL.md actually exists.
+name/directory match, that every `references/` or `templates/` path mentioned in a
+SKILL.md actually exists, and that every companion skill referenced in bold
+(`**marklogic-…**` / `**semaphore-…**`) resolves to a real skill directory. When one
+skill names another as part of its workflow, that companion must ship in this corpus —
+an agent following a pointer to a skill that is not installed is silently stranded.
 
 **Adding or removing a skill also means updating three catalogs**, or the build fails
 (`tests/skills/skills-catalog.test.ts`):
