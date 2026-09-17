@@ -62,39 +62,8 @@ deployed behind a REST endpoint.
 
 A monolithic script that queries everything and iterates in one transaction hits the
 600 s transaction timeout past ~1,000 documents and cannot use Flux's parallel threads.
-The two-module split is the only thing that scales.
-
-**Phase 1 — reader** (`--read-invoke`). Read-only, returns the URI list as the last
-expression. Do not `forEach` over it.
-
-```javascript
-'use strict';
-// No declareUpdate() — read-only collector
-var GRAPH = 'http://example.org/graph';
-var rows = sem.sparql(
-  'SELECT DISTINCT ?s FROM NAMED <' + GRAPH + '> WHERE { GRAPH <' + GRAPH + '> { ?s a ?type } }'
-);
-Array.from(rows).map(function (r) { return String(r.s); });
-```
-
-Keep it lightweight — `SELECT DISTINCT ?subject` only, no optional predicates.
-
-**Phase 2 — transform** (`--write-invoke`). One URI per invocation; scope every query to
-that single URI.
-
-```javascript
-'use strict';
-declareUpdate();          // FIRST statement — see the trap below
-var URI;                  // injected by Flux via --external-variable-name URI
-(function run() {
-  var doc = cts.doc(URI).toObject();
-  if (!doc) { return; }   // bare return needs the IIFE
-  xdmp.documentInsert(URI, doc, {
-    permissions: xdmp.documentGetPermissions(URI),
-    collections: Array.from(xdmp.documentGetCollections(URI)),
-  });
-})();
-```
+Always split into a read-only reader module (no `declareUpdate()`, returns a Sequence or
+Array of URI strings) and a per-URI transform module.
 
 ### ⚠ `declareUpdate()` placement
 
@@ -111,21 +80,17 @@ Other constraints: top-level bare `return` is a SyntaxError in strict-mode SJS �
 an IIFE. Declare `var URI` at module top level, not inside the IIFE, and never use
 `external.URI` (it throws `ReferenceError` under `xdmp.invoke()`).
 
-More on testing and the outbound-HTTP no-op in the **marklogic-bulk-import** skill.
+The full two-phase pattern — reader and transform module code, batching, testing a
+transform before a full run, and the outbound-HTTP no-op trap — is in the
+**marklogic-bulk-import** skill's reprocess-transforms reference.
 
 ## Never write `""` for an unbound value
 
-When building entity documents from SPARQL results, an unbound optional variable must
-not become an empty string — it pollutes indexes, breaks range queries, and creates
-misleading TDE rows.
-
-```javascript
-WRONG:   broaderUri: row.broader || ''
-CORRECT: if (row.broader) doc.broaderUri = row.broader;   // omit the key
-CORRECT: broaderUri: row.broader ?? null
-```
-
-Mark TDE columns backed by optional predicates `"nullable": true`.
+An unbound optional SPARQL variable must not become an empty string when building an
+entity document — it pollutes indexes, breaks range queries, and creates misleading TDE
+rows. Omit the key (`if (row.broader) doc.broaderUri = row.broader;`) or use
+`row.broader ?? null`, and mark the TDE column `"nullable": true`. Full rule, rationale,
+and more examples are in the **marklogic-data-modeling** skill, §4 (Triple design).
 
 ## TDE templates
 

@@ -1032,6 +1032,9 @@ plain Markdown in the repository.
                                    transactions, permissions, unit tests)
   marklogic-oauth-setup            OAuth2/OIDC external security, JWT claim -> role
                                    mapping, empty-role-list troubleshooting
+  marklogic-docker-setup           bootstrap/cluster env vars for MarkLogic in Docker,
+                                   persistent volume, init/restart-race healthchecks,
+                                   memory (swap/HugePages) tuning
   marklogic-fasttrack              search options for facets/timeline/map, React scaffold
   semaphore-integration            CLS/KMM setup, the four integration patterns,
                                    enrichment module, classification facet indexes

@@ -107,15 +107,7 @@ classify-and-write logic in the eval context.
   one JSON entity document with embedded unmanaged triples (JSON `triple` key) for TDE
   indexing.
 
-**Optional-predicate rule.** When a SPARQL variable is unbound, do not assign `''`.
-Empty strings pollute search indexes, break range queries, and create misleading TDE
-rows.
-
-```javascript
-WRONG:   broaderUri: row.broader || ''
-CORRECT: if (row.broader) doc.broaderUri = row.broader;   // omit when absent
-CORRECT: broaderUri: row.broader ?? null                  // null when absent
-```
-
-Applies to every optional predicate — `skos:broader`, `dcterms:description`,
-`owl:sameAs`, and so on.
+**Optional-predicate rule.** Do not assign `''` to an unbound SPARQL variable — omit the
+key, or use `?? null` instead. Applies to every optional predicate (`skos:broader`,
+`dcterms:description`, `owl:sameAs`, and so on). Full rule and examples are in the
+**marklogic-data-modeling** skill, §4 (Triple design).

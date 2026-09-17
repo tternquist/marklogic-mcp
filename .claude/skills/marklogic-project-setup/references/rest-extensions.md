@@ -113,6 +113,28 @@ the transaction. A POST/PUT handler may call `xdmp.documentInsert` directly and 
 enclosing REST request is already an update transaction. If you need update semantics from
 a `GET`, that is a design error: use POST.
 
+**Reality check:** the request may run with the REST app server in query mode, so a bare
+`xdmp.documentInsert()` throws `XDMP-UPDATEFUNCTIONFROMQUERY` even though the handler is a
+normal REST extension. The REST API docs explicitly state that resource extension methods
+run in the transaction context of the HTTP request and that JavaScript extensions cannot
+choose their own transaction mode; the fix is to move the write into a helper module and
+invoke it with an explicit update transaction:
+
+```javascript
+function writeDocument(uri, node) {
+  xdmp.invokeFunction(() => {
+    xdmp.documentInsert(uri, node, {
+      permissions: xdmp.documentGetPermissions('/docs/example.json'),
+      collections: ['demo']
+    });
+  }, { update: 'true', commit: 'auto' });
+}
+```
+
+This is the correct MarkLogic pattern when a request is evaluated in query mode; it is not
+an ad-hoc workaround for a one-off build. Check the app server's request context if you need
+to confirm the execution mode, but do not treat the issue as random or version-specific.
+
 ### Validate input, always
 
 `params` values arrive as strings straight from the caller. Never concatenate them into a

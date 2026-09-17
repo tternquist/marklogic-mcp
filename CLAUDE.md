@@ -69,11 +69,11 @@ distinction, where the removed advisory tools and prompts went, and troubleshoot
 Users who connect this MCP server from another project get skills only by copying them:
 `npm run skills:install -- --user` (`scripts/install-skills.mjs`).
 
-Current skills (13): `marklogic` (router), `marklogic-bulk-import`,
+Current skills (14): `marklogic` (router), `marklogic-bulk-import`,
 `marklogic-query-authoring`, `marklogic-data-modeling`, `marklogic-rag`,
 `marklogic-performance`, `marklogic-server-side-code`, `marklogic-project-setup`,
-`marklogic-oauth-setup`, `marklogic-fasttrack`, `semaphore-taxonomy`,
-`semaphore-integration`, `semaphore-classification-tuning`.
+`marklogic-oauth-setup`, `marklogic-docker-setup`, `marklogic-fasttrack`,
+`semaphore-taxonomy`, `semaphore-integration`, `semaphore-classification-tuning`.
 
 **What belongs in a tool description** (keep it to a few lines):
 - what the tool does
@@ -128,10 +128,14 @@ from this text, or if this text names a tool that no longer exists.
 
 ### The `marklogic` router skill (`.claude/skills/marklogic/SKILL.md`)
 
-This is the problem→capability router and the canonical **complete tool index**. It
-replaced the `problem_advisor` prompt. **When adding a new tool, add it to the relevant
-group in the "Complete tool index" section** — `tests/resources/guidance-sync.test.ts`
-reads this file from disk and fails the build if any registered tool is missing from it.
+This is the problem→capability router. The canonical **complete tool index** is a
+reference file it points to, `references/tool-index.md` — kept separate from the
+router body so the always-relevant problem→approach table stays short and the
+exhaustive tool list only loads when an agent needs to check whether a capability exists
+at all. It replaced the `problem_advisor` prompt. **When adding a new tool, add it to the
+relevant group in `references/tool-index.md`** — `tests/resources/guidance-sync.test.ts`
+reads both `SKILL.md` and that reference file from disk and fails the build if any
+registered tool is missing.
 
 ### MCP prompts (`src/prompts/index.ts`)
 
@@ -214,7 +218,8 @@ If a prompt really is right:
 ```
 .claude/skills/       — Agent Skills (spec: agentskills.io); read by Claude Code,
                         Copilot CLI, and other spec-adopting agents
-  marklogic/                        — problem -> capability router + complete tool index
+  marklogic/                        — problem -> capability router; references/tool-index.md
+                                      holds the complete tool index
   marklogic-bulk-import/            — Flux recipes, wrappers, reprocess transforms
   marklogic-query-authoring/        — query selection, structured-query cookbook, SPARQL
   marklogic-data-modeling/          — multi-model design, URI rules, envelope pattern
@@ -229,6 +234,8 @@ If a prompt really is right:
                                       transform contract), references/gradle-tasks.md
                                       (task set, credentials, multi-env, CI)
   marklogic-oauth-setup/            — OIDC external security, JWT -> role mapping
+  marklogic-docker-setup/           — MarkLogic-in-Docker: bootstrap/cluster env vars,
+                                      persistent volume, init/restart-race healthchecks
   marklogic-fasttrack/              — search options for facets/timeline/map
   semaphore-taxonomy/               — SKOS authoring + Turtle template
   semaphore-integration/            — CLS/KMM setup, four integration patterns

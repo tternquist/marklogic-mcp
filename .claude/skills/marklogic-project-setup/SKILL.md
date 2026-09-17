@@ -180,6 +180,53 @@ built-in `Documents` database, which is for ad-hoc sandbox use only. When workin
 against an existing project, run `ml_databases_list` and `ml_servers_list` first to find
 the right database and app server rather than assuming `Documents`.
 
+### Verify the active MarkLogic target before debugging
+
+The MCP tools operate against the MarkLogic instance configured in this session, not a
+hidden "default" target. In containerized demos and multi-environment setups, it is common
+for the app server, database, or REST port to be correct on disk but not the one the MCP
+calls are actually hitting. Before assuming a mismatch or debugging a deploy issue,
+run:
+
+```bash
+ml_databases_list
+ml_servers_list
+```
+
+Then confirm the app server port and database match the project expectations. This is the
+fastest way to rule out a stale or wrong target when a query or extension behaves as if
+it is connected to a different environment.
+
+## Resource extension transaction reality check
+
+The REST API docs are explicit: JavaScript resource extensions do not control their own
+transaction mode; MarkLogic chooses the mode from the REST app server and the request
+context. A method that runs in query mode cannot perform direct document writes, and the
+symptom is `XDMP-UPDATEFUNCTIONFROMQUERY` when a handler calls `xdmp.documentInsert()`
+directly.
+
+**Do not fix that by adding `declareUpdate()` to the extension itself.** The extension
+module is not the right place for the write. Instead, wrap the update in a helper or
+library module and execute that logic in an explicit update transaction:
+
+```javascript
+// library module
+function writeDoc(uri, body) {
+  xdmp.invokeFunction(() => {
+    xdmp.documentInsert(uri, body, {
+      permissions: [xdmp.permission('rest-reader', 'read'), xdmp.permission('rest-writer', 'update')],
+      collections: ['demo']
+    });
+  }, { update: 'true', commit: 'auto' });
+}
+```
+
+This keeps the REST extension in its request-scoped transaction while the actual write
+happens in an explicit update transaction. This is the correct workaround when the request
+is evaluated in query mode; it is not a workaround for a broken server configuration.
+Check the error log for `$default-txn-mode` only to confirm the observed execution mode,
+not to infer that the behavior is random across builds.
+
 ## After every deploy — validate, don't assume
 
 `mlDeploy` / `mlReloadModules` exiting cleanly only means the Manage API accepted the

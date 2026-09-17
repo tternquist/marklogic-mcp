@@ -171,9 +171,23 @@ matches a query word in an irrelevant context.
 |---|---|
 | `TDE-INVALIDTEMPLATENODEVAL` | used `"scalar"` or `"vec:vector"` instead of `"scalarType": "vector"` |
 | `XDMP-CAST` on the embedding column | `"val": "embedding"` instead of `"array-node('embedding')"` |
+| `XDMP-CAST: Invalid cast: null cast as vec:vector(dim:...)` | `"dimension"` is a string instead of a JSON number; a preceding `date` column can also trigger the same null-cast path in a specific template |
 | `XDMP-MODNOTFOUND` | `require('/MarkLogic/vec')` — `vec` is a global |
 | `XDMP-DIMMISMATCH` | stored dimension ≠ query vector length; log `embeddingDim` at ingest |
 | `SQL-TABLEREINDEXING` | querying before reindex finished — check `ml_reindex_status` |
+| `SQL-TABLENOTFOUND` / `Unknown table` | the TDE document exists but the view is not queryable; check the view registration, the target database, and the `collections` filter shape before assuming the schema is valid |
 | `tlsv1 unrecognized name` | `xdmp.httpPost` to an external HTTPS embedding API; generate embeddings in the app tier |
 | Results ordered worst-first | `vec.vectorScore` sorted descending — it ranks ascending |
 | One document floods the results | chunked corpus not deduplicated by `sourceUri` |
+
+### Decision tree when the view is installed but not queryable
+
+1. Confirm the template is installed and validates (`ml_schema_get_tde`, `ml_tde_validate`).
+2. Confirm the query is going to the expected database and app server (`ml_databases_list`,
+   `ml_servers_list`).
+3. If `ml_reindex_status` says `ready=true` but the view still returns `SQL-TABLENOTFOUND`,
+   treat it as a registration or target mismatch problem rather than a generic schema problem —
+   the most common silent cases are a wrong `collections` filter shape or a query pointed at the
+   wrong database.
+4. Do not spend the session debugging the query path; keep a brute-force cosine fallback in
+   the application tier until the vector view is confirmed healthy.
