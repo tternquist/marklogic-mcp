@@ -5,7 +5,7 @@ A [Model Context Protocol (MCP)](https://modelcontextprotocol.io) server for Mar
 ## Features
 
 - **103 MCP tools** across 15 domains: admin (incl. logs), documents, security, search, search options, schema, eval, SPARQL/graphs, Optic (incl. vector search), performance, QuickSight, Flux, REST extensions, Semaphore (taxonomy + classification), and DHF
-- **13 Agent Skills** carrying the MarkLogic know-how — import recipes, index prerequisites, TDE traps, SKOS publishing order — loaded only when the task calls for them ([guide](docs/SKILLS.md))
+- **14 Agent Skills** carrying the MarkLogic know-how — import recipes, index prerequisites, TDE traps, SKOS publishing order — loaded only when the task calls for them ([guide](docs/SKILLS.md))
 - **6 MCP resources** including a machine-readable problem→solution decision guide
 - **3 MCP prompts** for one-shot import and BI-integration flows
 - **Two transports**: **stdio by default** — the agent launches the server as a local subprocess (Claude Code, Claude Desktop, Copilot CLI, Copilot in VS Code, any local agent) — plus HTTP for shared or remote deployments (QuickSight, hosted agents, per-user OAuth)
@@ -408,7 +408,7 @@ Always use `flux_import` for more than ~10 documents. It handles HTTP URL fetch,
 
 ## Agent Skills
 
-The MarkLogic know-how — Flux import recipes, index prerequisites, TDE syntax traps, SKOS publishing order, OAuth claim mapping — ships as **13 Agent Skills** in `.claude/skills/`, following the open [Agent Skills spec](https://agentskills.io/specification).
+The MarkLogic know-how — Flux import recipes, index prerequisites, TDE syntax traps, SKOS publishing order, OAuth claim mapping — ships as **14 Agent Skills** in `.claude/skills/`, following the open [Agent Skills spec](https://agentskills.io/specification).
 
 **A skill is just a Markdown file** — a one-line description plus a body of recipes, failure
 modes, and worked examples. Nothing is registered with the server and nothing is configured; the
@@ -428,6 +428,7 @@ Only each skill's ~500-character description stays in context; the body loads wh
 | **`marklogic-performance`** | A query is slow or timing out; reading plans, caches, forest health |
 | **`marklogic-fasttrack`** | Faceted search UI — search options set plus the React scaffold |
 | **`marklogic-oauth-setup`** | OAuth2/OIDC bearer auth, or "token authenticates but has no roles" |
+| **`marklogic-docker-setup`** | Writing or debugging a docker-compose.yml/docker run for MarkLogic itself — bootstrap env vars, persistent volume, init/restart-race healthchecks, memory tuning, clustering |
 | **`semaphore-integration`** | Wiring Semaphore to MarkLogic — pattern choice, CLS/KMM config, enrichment module |
 | **`semaphore-taxonomy`** | Authoring, loading, validating, and publishing SKOS taxonomies in KMM |
 | **`semaphore-classification-tuning`** | Classification results are wrong — labels → threshold → `.kid` weights |

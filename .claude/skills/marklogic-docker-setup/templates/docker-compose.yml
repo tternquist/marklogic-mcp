@@ -1,0 +1,57 @@
+version: "3.9"
+
+# Minimal single-node MarkLogic Server in Docker. Copy this file, rename the
+# service/container if it needs to coexist with others, and layer on whatever
+# this project needs (Semaphore, a REST-extension sidecar, this repo's own
+# marklogic-mcp service, etc.).
+#
+# Usage:
+#   docker compose up -d
+#   docker compose logs -f marklogic     # watch first-boot bootstrap
+
+services:
+  marklogic:
+    image: progressofficial/marklogic-db:latest   # pin to {version}-{platform} for anything but local dev
+    container_name: marklogic
+    # Rootless images (the 'latest' tag's default) do not need this. Only add it
+    # back if you pin to a non-rootless '-ubi'/'-ubi9' tag that requires it.
+    # privileged: true
+    ports:
+      - "8000:8000"   # default REST / app server
+      - "8001:8001"   # Admin UI (browser only)
+      - "8002:8002"   # Manage API — what ML_MANAGEMENT_PORT / healthchecks use
+    environment:
+      - MARKLOGIC_INIT=true
+      - MARKLOGIC_ADMIN_USERNAME=${ML_USERNAME:-admin}
+      - MARKLOGIC_ADMIN_PASSWORD=${ML_PASSWORD:-admin}
+      # - LICENSE_KEY=${ML_LICENSE_KEY:-}     # omit for the free developer license
+      # - LICENSEE=${ML_LICENSEE:-}
+      # - MARKLOGIC_JOIN_CLUSTER=true         # set on every node except the bootstrap host
+      # - MARKLOGIC_BOOTSTRAP_HOST=marklogic  # required on joining nodes
+      # - ML_HUGEPAGES_TOTAL=0                # disable HugePages if the host doesn't have them configured
+    volumes:
+      # Named volume, not a bind mount — required for data (and the admin user)
+      # to survive `docker compose down` / container recreation.
+      - ml-data:/var/opt/MarkLogic
+    # Uncomment to cap memory/swap (recommended for anything but local dev):
+    # mem_limit: 8g
+    # memswap_limit: 12g
+    healthcheck:
+      # A single successful probe is not sufficient — MarkLogic can answer 200
+      # while mid-restart applying a config change, then 503 moments later.
+      # Require 3 consecutive OKs, spaced out, before trusting "healthy".
+      # (This same pattern lives in .github/workflows/integration.yml.)
+      test:
+        - CMD-SHELL
+        - >
+          for i in 1 2 3; do
+            curl -sf -u ${ML_USERNAME:-admin}:${ML_PASSWORD:-admin} http://localhost:8002/manage/v2 || exit 1;
+            sleep 3;
+          done
+      interval: 15s
+      timeout: 30s
+      retries: 10
+      start_period: 60s
+
+volumes:
+  ml-data:

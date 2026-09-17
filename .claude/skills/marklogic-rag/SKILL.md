@@ -49,23 +49,37 @@ Produce the float array outside, then store it with `flux_import` or `ml_documen
         { "name": "uri",       "scalarType": "string", "val": "xdmp:node-uri(.)" },
         { "name": "content",   "scalarType": "string", "val": "chunkText" },
         { "name": "embedding", "scalarType": "vector", "val": "array-node('embedding')",
-          "dimension": "1536", "invalidValues": "reject" }
+          "dimension": 1536, "invalidValues": "reject" }
       ]
     }]
   }
 }
 ```
 
-Four rules that each cause a distinct failure:
+Five rules that each cause a distinct failure:
 
 - **`"scalarType": "vector"`** — not `"vec:vector"`, not `"scalar"`. Either of those
   gives `TDE-INVALIDTEMPLATENODEVAL`.
 - **`"val": "array-node('embedding')"`** — plain `"val": "embedding"` atomises the array
   into N individual number nodes and throws `XDMP-CAST`.
-- **`"dimension"`** is required and must match the model output exactly, or queries
-  fail with `XDMP-DIMMISMATCH`.
+- **`"dimension"`** is required and must be a JSON number, not a string. `"1536"` can
+  fail with `XDMP-CAST: Invalid cast: null cast as vec:vector(dim:1536)` and no obvious
+  message that the type is wrong.
 - **`"invalidValues": "reject"`** — skips malformed documents instead of failing the
   whole view.
+- **Column ordering can trigger the same null-cast failure.** A `date` scalar column
+  immediately before the vector column has been observed to produce the same null-cast
+  error as the dimension typo, even when the vector itself is valid. This is a
+  template-construction interaction, not a documented MarkLogic rule — if a minimal
+  single-column vector template works but a multi-column one fails, isolate the cause by
+  moving the vector column away from other scalar columns before assuming the vector
+  spec itself is wrong.
+
+Also check database settings on the content database if the failure persists after the
+obvious schema checks. `maintain-last-modified: true` is a plausible suspect in a specific
+environment, but it is not a general MarkLogic rule and should be treated as a diagnostic
+check, not as a universal root cause. If a minimal TDE template still fails, test the same
+TDE with that setting removed to confirm whether the environment is contributing.
 
 Deploy with `ml_document_put` to the Schemas database (a URI starting `/tde/` joins the
 TDE collection automatically). Then wait for `ml_reindex_status(database=...)` to report
@@ -73,6 +87,46 @@ TDE collection automatically). Then wait for `ml_reindex_status(database=...)` t
 
 Validate before querying: `tde.validate([cts.doc('/tde/your/template.json')],[])` via
 `ml_eval_javascript` — an empty array means no errors.
+
+### TDE installed but the view never becomes queryable
+
+The most expensive failure pattern is: the template installs successfully, `ml_reindex_status`
+reports `ready=true`, but `op.fromView(...)` still fails with `SQL-TABLENOTFOUND` or
+`Unknown table`. In practice, this is usually a registration or target mismatch problem:
+TDE templates can be written to the Schemas database with the right collection and still be
+unqueryable if the template shape is wrong, if the wrong database is under test, or if the
+view never registers correctly. `ready=true` confirms reindex completion for that database,
+not that every client path is querying the correct view.
+
+Use this decision tree:
+
+1. **Check the template itself.** `ml_schema_get_tde` and `ml_tde_validate` must show the
+   view is registered and the template extracts rows.
+2. **Check the target.** Verify the content database, schemas database, and app server are
+   the ones actually configured for the instance (`ml_databases_list`, `ml_servers_list`).
+3. **Check the registration shape.** A wrong `collections` filter shape is a classic silent
+   failure: the template document exists, but the SQL view never registers. The repo's
+   `ml_document_put` and `ml_tde_install` tools both warn about this under `collections`.
+4. **Escalate to a fallback.** If the TDE route remains broken and the vector model is
+   simple, keep the retrieval layer as brute-force cosine over stored embeddings in the
+   application tier until the environment issue is resolved.
+
+A minimal fallback is:
+
+```javascript
+const docs = cts.search(cts.collectionQuery('my-collection'));
+const result = Array.from(docs)
+  .map(doc => {
+    const body = doc.toObject();
+    const distance = Math.sqrt(body.embedding.reduce((sum, v, i) => sum + (v - queryEmbedding[i]) ** 2, 0));
+    return { uri: xdmp.nodeUri(doc), distance };
+  })
+  .sort((a, b) => a.distance - b.distance)
+  .slice(0, 10);
+```
+
+This is a temporary Plan B for a broken TDE/Optic vector environment, not a substitute for
+native MarkLogic vector indexing when the cluster is healthy.
 
 ## 3. Retrieval
 

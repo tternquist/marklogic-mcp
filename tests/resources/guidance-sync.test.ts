@@ -89,10 +89,13 @@ function captureFullSurface() {
 const { toolNames, promptTexts } = captureFullSurface();
 
 /** The `marklogic` router skill carries the exhaustive tool index that the
- *  problem_advisor prompt used to hold. Read straight from disk — skills are
- *  plain files, not module exports. */
+ *  problem_advisor prompt used to hold. The index itself lives in a
+ *  references/ file for progressive disclosure — read straight from disk and
+ *  concatenated, since skills are plain files, not module exports. */
 const ROUTER_SKILL = ".claude/skills/marklogic/SKILL.md";
-const routerSkillText = readFileSync(ROUTER_SKILL, "utf8");
+const ROUTER_TOOL_INDEX = ".claude/skills/marklogic/references/tool-index.md";
+const routerSkillText =
+  readFileSync(ROUTER_SKILL, "utf8") + "\n" + readFileSync(ROUTER_TOOL_INDEX, "utf8");
 
 /** Word-boundary check so e.g. a mention of ml_search_qbe doesn't satisfy ml_search. */
 function mentions(text: string, name: string): boolean {
@@ -118,7 +121,7 @@ describe("guidance-artifact sync (CLAUDE.md mandate)", () => {
     const missing = toolNames.filter((name) => !mentions(routerSkillText, name));
     expect(
       missing,
-      `Tools registered but missing from the tool index in ${ROUTER_SKILL}: ${missing.join(", ")}`
+      `Tools registered but missing from the tool index in ${ROUTER_SKILL} or ${ROUTER_TOOL_INDEX}: ${missing.join(", ")}`
     ).toEqual([]);
   });
 

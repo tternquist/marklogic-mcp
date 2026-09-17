@@ -1,6 +1,6 @@
 # Agent Skills
 
-This repository ships **13 Agent Skills** in `.claude/skills/`. They carry the MarkLogic
+This repository ships **14 Agent Skills** in `.claude/skills/`. They carry the MarkLogic
 know-how that used to live inside tool descriptions and advisory prompts: Flux import
 recipes, index prerequisites, TDE syntax traps, SKOS publishing order, OAuth claim
 mapping, and so on.
@@ -132,7 +132,7 @@ capability, names the tools that implement it, and points at the deeper skill.
 
 | Skill | Reach for it when | Bundled files |
 |---|---|---|
-| **`marklogic`** | Any MarkLogic task where the right approach isn't obvious. Problem→capability table, the discovery-before-querying sequence, choosing between overlapping tools, what `ML_READONLY`/`ML_ALLOW_EVAL` hide, and the complete tool index. | — |
+| **`marklogic`** | Any MarkLogic task where the right approach isn't obvious. Problem→capability table, the discovery-before-querying sequence, choosing between overlapping tools, what `ML_READONLY`/`ML_ALLOW_EVAL` hide, and the complete tool index. | 1 reference: complete tool index |
 | **`marklogic-bulk-import`** | Loading data in bulk via Flux — HTTP/S3/local files, JDBC, RDF, CSV/JSON/JSONL/Parquet/Avro — open-data portals, generating a TDE at ingest, classifying at ingest, or bulk-transforming an existing collection. | 4 references: Socrata/open data, JSONL & API wrappers, reprocess transforms, Semaphore at ingest |
 | **`marklogic-query-authoring`** | Composing any query, or triaging one that returns nothing or everything. Covers `ml_search` vs `ml_optic_query` vs `ml_values_query` vs `ml_sparql_query` vs `ml_vector_search`, index prerequisites, and `XDMP-ELEMRIDXNOTFOUND`. | 3 references: structured-query cookbook, NL→query, SPARQL & triples |
 | **`marklogic-data-modeling`** | Modelling a new domain — documents vs triples vs vectors, URI schemes, collection layout, TDE view design, the envelope pattern for harmonizing multiple sources. | 1 reference: envelope pattern |
@@ -142,6 +142,7 @@ capability, names the tools that implement it, and points at the deeper skill.
 | **`marklogic-performance`** | A query is slow or times out, or you're reading `ml_profile_query`/`ml_explain_optic` output, or forests look unhealthy. E-node/D-node split, filtered search, cache interpretation, when a range index is actually mandatory. | — |
 | **`marklogic-fasttrack`** | Building a faceted search UI — designing the stored search options set that drives facets, timelines, and maps, then scaffolding the React app. Covers `XDMP-VALIDATEMISSINGATTR` on buckets. | — |
 | **`marklogic-oauth-setup`** | Enabling OAuth2/OIDC bearer auth on an app server, or debugging "token authenticates but has no roles". Requires MarkLogic 11+. | 1 reference: OAuth configuration |
+| **`marklogic-docker-setup`** | Writing or debugging a docker-compose.yml or `docker run` for MarkLogic Server itself — bootstrap/cluster env vars, the persistent volume, rootless vs privileged images, memory tuning, and the init/restart-race that makes a healthcheck report ready too early. | 1 template: standalone docker-compose.yml |
 | **`semaphore-integration`** | Wiring Semaphore to MarkLogic — choosing between ingest-time classification, reprocess enrichment, a REST transform, or a DHF pipeline; CLS/KMM config; the enrichment module; facet indexes. | 1 reference: enrichment module |
 | **`semaphore-taxonomy`** | Authoring, loading, validating, and publishing SKOS taxonomies in KMM. Covers the SKOS-XL reification step behind "No preferred labels" and plain-SKOS vocabularies (UNESCO, EuroVoc, AGROVOC, IPTC). | 1 template: taxonomy skeleton (Turtle) |
 | **`semaphore-classification-tuning`** | Classification results are *wrong* rather than the taxonomy being wrong — false positives, missed matches, flat scores, nearlist noise. The three fix levels: concept labels → threshold → `.kid` template weights. | 1 reference: 8 symptom playbooks |
