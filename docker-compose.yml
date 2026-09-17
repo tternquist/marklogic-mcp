@@ -23,8 +23,12 @@ services:
       # absolute path as your host (what DHF step configs usually reference), set both:
       #   ML_INPUT_DIR=/path/on/host  ML_INPUT_MOUNT=/path/on/host
       - ${ML_INPUT_DIR:-./ml-input}:${ML_INPUT_MOUNT:-/data-in}:ro
+    # --anyauth answers whichever challenge (Digest or Basic) this image version
+    # issues; the Manage API rejects unauthenticated requests with 401.
+    # NOTE: first boot on a fresh volume can race the init script and exit 1 —
+    # just `docker compose up` again. See docs/docker-networking.md.
     healthcheck:
-      test: ["CMD", "curl", "-f", "-u", "admin:admin", "http://localhost:8002/manage/v2"]
+      test: ["CMD", "curl", "-sf", "--anyauth", "-u", "admin:admin", "http://localhost:8002/manage/v2"]
       interval: 15s
       timeout: 10s
       retries: 10

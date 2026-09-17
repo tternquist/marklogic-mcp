@@ -1,6 +1,6 @@
 ---
 name: marklogic-query-authoring
-description: Choose and write the right MarkLogic query for a goal — full-text search, exact-value filtering, structured cts queries, string-grammar (cts.parse) queries, QBE, facets and distinct-value counts, Optic row queries over TDE views, SPARQL over the triple store, and vector similarity search. Use when composing any query, when a query returns no results or too many, when deciding between ml_search, ml_optic_query, ml_values_query, ml_sparql_query, and ml_vector_search, or when hitting index errors like XDMP-ELEMRIDXNOTFOUND or XDMP-PATHRIDXNOTFOUND (including when the index is deployed but "not found").
+description: Choose and write the right MarkLogic query for a goal — full-text search, exact-value filtering, structured cts queries, string-grammar (cts.parse) queries, QBE, facets and distinct-value counts, Optic row queries over TDE views, SPARQL over the triple store, and vector similarity search. Use when composing any query, when building the qtext + facet-filter + sort combined-query body behind a search UI (including raw /v1/search POST bodies), when a query returns no results or too many (a malformed structured query silently matches every document), when deciding between ml_search, ml_optic_query, ml_values_query, ml_sparql_query, and ml_vector_search, or when hitting index errors like XDMP-ELEMRIDXNOTFOUND or XDMP-PATHRIDXNOTFOUND (including when the index is deployed but "not found").
 ---
 
 # MarkLogic Query Authoring
@@ -14,6 +14,7 @@ description: Choose and write the right MarkLogic query for a goal — full-text
 | Tokenised text in one field | `ml_search` `word-query` | none |
 | Distinct values / counts / buckets | `ml_values_query` | **range index** on the field |
 | Facet counts alongside results | `ml_facets_query` | range index per facet |
+| Search UI: qtext + facet filters + sort | `ml_search` + options set (or raw combined query) | range index per constraint |
 | GROUP BY, joins, aggregates | `ml_optic_query` | **TDE template** in Schemas |
 | Entity relationships, graph traversal | `ml_sparql_query` | triple index on |
 | Semantic / similarity search | `ml_vector_search` | vector index (ML 12+) |
@@ -48,6 +49,22 @@ For free text across the whole document, just use `ml_search q="hurricane"`.
 Reach for `ml_parse_query` only when you specifically need string-grammar parsing — an
 LLM-written `X AND Y NOT Z` expression with range comparisons on **indexed** fields — or
 when round-tripping a string query through MarkLogic's parser to canonicalise it.
+
+## The most dangerous failure: a malformed query matches everything, silently
+
+`/v1/search` does not reject query JSON it cannot interpret — unrecognised keys are
+ignored, and what remains can be an empty query, which matches **every document in
+scope**. There is no error; the response looks like a working, filtered result set
+until you read `total`. **After composing any new query shape, run it once with the
+filter and once without: equal totals mean the filter was silently ignored.** A
+"filtered" query whose `total` equals the whole corpus count is this failure, not a
+coincidence.
+
+The shape this bites most is the search-UI query — free text plus facet filters plus
+sort. Free text belongs in the combined query's `qtext` (or `ml_search`'s `q`), never
+improvised as a query object; facet filters are `range-constraint-query` clauses
+resolving against named constraints in `options`. A known-good copy-paste template is
+in `references/structured-query-cookbook.md` under "The search-UI shape".
 
 ## Natural language → query pipeline
 

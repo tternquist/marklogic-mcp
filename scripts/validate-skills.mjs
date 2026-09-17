@@ -11,6 +11,12 @@
  * Also verifies that every references/ and templates/ file mentioned in a
  * SKILL.md actually exists, so progressive-disclosure links cannot rot.
  *
+ * Cross-skill references are checked too: skills name their companions in bold
+ * (**marklogic-bulk-import**), and an agent following such a pointer to a skill
+ * that does not exist in this corpus is silently stranded. Every bold
+ * **marklogic-…** / **semaphore-…** token in a SKILL.md or its references/
+ * files must match a real skill directory.
+ *
  * With --check-links, additionally resolves every external Markdown hyperlink
  * in the skills over the network. This is opt-in because it needs egress and
  * because vendors reorganise their doc sites on their own schedule — a red
@@ -130,6 +136,14 @@ if (!fs.existsSync(ROOT)) {
   process.exit(1);
 }
 
+/** Bold cross-references to companion skills, e.g. **marklogic-bulk-import**. */
+const SKILL_REF_RE = /\*\*((?:marklogic|semaphore)-[a-z0-9-]+)\*\*/g;
+const skillNames = new Set(
+  fs
+    .readdirSync(ROOT)
+    .filter((d) => fs.statSync(path.join(ROOT, d)).isDirectory())
+);
+
 for (const dir of fs.readdirSync(ROOT).sort()) {
   const skillDir = path.join(ROOT, dir);
   if (!fs.statSync(skillDir).isDirectory()) continue;
@@ -186,6 +200,15 @@ for (const dir of fs.readdirSync(ROOT).sort()) {
   for (const src of linkSources) {
     for (const url of collectMarkdownLinks(src.text)) {
       links.push({ source: src.label, url });
+    }
+    // Companion-skill references must resolve to a skill in this corpus.
+    const prose = src.text.replace(/^```[\s\S]*?^```/gm, "");
+    for (const ref of prose.matchAll(SKILL_REF_RE)) {
+      if (!skillNames.has(ref[1])) {
+        errors.push(
+          `${src.label}: references companion skill "${ref[1]}" which does not exist in ${ROOT}`
+        );
+      }
     }
   }
 

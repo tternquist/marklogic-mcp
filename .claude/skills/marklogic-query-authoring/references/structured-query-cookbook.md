@@ -69,6 +69,70 @@ structured `value-query`.
 { "query": { "not-query": { "value-query": { "json-property": "state", "text": ["PR"] } } } }
 ```
 
+## The search-UI shape: qtext + facets + constraint filters
+
+The query behind almost every search UI is one shape: a free-text box, facet counts,
+facet filters the user has clicked, and a sort. Through the MCP tools:
+
+1. Persist an options set defining the constraints once (`ml_search_options_put` — the
+   marklogic-fasttrack skill covers authoring it), then
+2. call `ml_search` with `q` for the free text, `options=<set-name>`, and a
+   `structured_query` whose `range-constraint-query` clauses reference the constraint
+   names. The REST layer ANDs `q` with the structured query.
+
+When composing the raw `/v1/search` REST body instead (no persisted options), everything
+goes in one **combined query** — POST with `Content-Type: application/json`, body root
+`search`:
+
+```json
+{ "search": {
+    "qtext": "diabetes",
+    "query": { "and-query": { "queries": [
+      { "range-constraint-query": { "constraint-name": "plan",   "value": ["Managed Care"] } },
+      { "range-constraint-query": { "constraint-name": "county", "value": ["Albany"] } }
+    ] } },
+    "options": {
+      "constraint": [
+        { "name": "plan",   "range": { "type": "xs:string", "json-property": "planName", "facet": true } },
+        { "name": "county", "range": { "type": "xs:string", "json-property": "county",   "facet": true } }
+      ],
+      "return-facets": true,
+      "sort-order": [ { "direction": "descending", "json-property": "enrollmentDate", "type": "xs:date" } ]
+    }
+} }
+```
+
+Rules that make or break this shape:
+
+- **Free text goes in `search.qtext`**, not improvised as a query object under `query`.
+  `qtext` is parsed with the search grammar and ANDed with `query`; a free-text object
+  misplaced inside `query` is one of the shapes that gets silently ignored (below).
+- **`range-constraint-query` resolves by name** against a `constraint` defined in the
+  same body's `options` (or in the persisted set named by `?options=`). A filter whose
+  `constraint-name` matches nothing does not filter.
+- **Every `range` constraint needs a range index** on the property — for both the
+  filtering and the facet counts. If the index was created with a non-default collation,
+  the constraint must state the same `collation`, or resolution fails as if the index
+  were missing.
+- `sort-order` on a property also needs a range index; to sort by relevance use
+  `{ "direction": "descending", "score": null }`.
+
+### A query MarkLogic can't interpret matches everything, silently
+
+`/v1/search` does not reject unrecognised query JSON. Keys the parser does not expect at
+a given position are ignored, and what remains after ignoring them can be an empty
+query — which matches **every document in scope**. A misnested body therefore looks
+exactly like a working, filtered query until you read `total`.
+
+Sanity-check every new query shape before trusting it:
+
+1. Run it and note `total`.
+2. Run it again with the filter removed (or against `q="*"`).
+3. If the totals are equal, the filter was ignored — fix the shape; do not build on it.
+
+A "filtered" query whose `total` equals the whole corpus count is the signature of this
+failure, not a coincidence.
+
 ## Projection and inline aggregation
 
 `ml_search` can return field values directly, avoiding follow-up `ml_document_get` calls.
